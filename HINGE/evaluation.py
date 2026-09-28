@@ -346,10 +346,11 @@ def evaluate_synthetic(
 
 def run_synthetic_evaluation(
     adata_panel1,
-    uni_panel1,
+    uni_panel1_normed,
     adata_panel2,
-    uni_panel2,
+    uni_panel2_normed,
 
+    expr_panel1,
     expr_pca,
     overlap_genes,    
     spatial_key_p1    = "spatial",
@@ -374,9 +375,9 @@ def run_synthetic_evaluation(
     # Step 1: stats
     stats = compute_population_diff_stats(
         adata_panel1   = adata_panel1,
-        uni_panel1     = uni_panel1,
+        uni_panel1_normed     = uni_panel1_normed.X,
         adata_panel2   = adata_panel2,
-        uni_panel2     = uni_panel2,
+        uni_panel2_normed     = uni_panel2_normed.X,
         overlap_genes  = overlap_genes,
         spatial_key_p1 = spatial_key_p1,
         spatial_key_p2 = spatial_key_p2,
@@ -385,7 +386,7 @@ def run_synthetic_evaluation(
     # Step 2: replicates
     fakes = create_synthetic_replicates(
         adata_panel1      = adata_panel1,
-        uni_panel1        = uni_panel1,
+        uni_panel1_normed = uni_panel1_normed,
         stats             = stats,
         alpha_list        = alpha_list,
         n_seeds_per_alpha = n_seeds_per_alpha,
@@ -411,7 +412,7 @@ def run_synthetic_evaluation(
         
         # ── Prepare features ──────────────────────────────────────────────────────
         morph_panel1_list, morph_fake_list, morph_pca = prepare_morphology_features(
-            [uni_panel1], [fake["uni"]], n_pca_comps=N_PCA_MORPH
+            [uni_panel1_normed], [fake["uni"]], n_pca_comps=N_PCA_MORPH
         )
     
         
@@ -419,7 +420,8 @@ def run_synthetic_evaluation(
         expr_t = get_expr_pca(
         fake["adata"], overlap_genes, expr_pca, NORMALIZE_EXPR=NORMALIZE_EXPR
         )
-        
+
+        #print(f"expr_pca type: {type(expr_pca)}   expr_t: {type(expr_t)} ")
         
         #add feature extraction step
 
@@ -430,7 +432,7 @@ def run_synthetic_evaluation(
             morph_orig     = morph_panel1_list[0],
             morph_t        = morph_fake_list[0],
             
-            expr_orig      = expr_pca
+            expr_orig      = expr_panel1,
             expr_t         = expr_t,
             
             MAX_DIST       = MAX_DIST,

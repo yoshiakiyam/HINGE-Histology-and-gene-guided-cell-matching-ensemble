@@ -2,6 +2,9 @@ import numpy as np
 from HINGE.utils import _xy, _uni_matrix, _expr_matrix, _to_dense
 from sklearn.preprocessing import normalize
 
+import anndata as ad
+
+
 def compute_population_diff_stats(
     adata_panel1,
     uni_panel1_normed,      
@@ -98,7 +101,7 @@ def create_synthetic_sample(
     noise_scale = 1.0,
     random_seed = 0,
     spatial_key = "spatial",
-    recenter    = True,
+    RECENTER    = True,
 ):
     """
     Create synthetic s1_t using normalized UNI features.
@@ -113,7 +116,7 @@ def create_synthetic_sample(
     n1  = len(adata_panel1)
 
     xy_p1   = _xy(adata_panel1, spatial_key)
-    uni_p1  = np.asarray(uni_panel1_normed, dtype=np.float64)  # normalized
+    uni_p1  = np.asarray(uni_panel1_normed.X, dtype=np.float64)  # normalized
     genes   = stats['overlap_genes']
     expr_p1 = _expr_matrix(adata_panel1, genes)
 
@@ -135,6 +138,13 @@ def create_synthetic_sample(
     uni_t = uni_p1 + alpha * stats['delta_mean_uni'] + uni_noise
     uni_t = normalize(uni_t.astype(np.float32))    # re-normalize
 
+
+    #create the anndata object
+    uni_t_adata = uni_panel1_normed.copy()
+    
+    uni_t_adata.X = uni_t
+    uni_t_adata.obsm["spatial"] = xy_t.copy()
+
     # ── Expression ────────────────────────────────────────────────
     expr_noise = rng.normal(
         0,
@@ -146,9 +156,9 @@ def create_synthetic_sample(
         0, None
     )
 
-    # ── Recenter ──────────────────────────────────────────────────
+    # ── RECENTER ──────────────────────────────────────────────────
     xy_raw = xy_t.copy()
-    if recenter:
+    if RECENTER:
         mean_shift = xy_t.mean(axis=0) - xy_p1.mean(axis=0)
         xy_t = xy_t - mean_shift
 
@@ -172,7 +182,7 @@ def create_synthetic_sample(
     return {
         'xy'           : xy_t,
         'xy_raw'       : xy_raw,
-        'uni'          : uni_t,
+        'uni'          : uni_t_adata,
         'adata'        : adata_t,
         'cell_ids'     : np.array(adata_panel1.obs_names),
         'ground_truth' : np.arange(n1),
@@ -184,14 +194,14 @@ def create_synthetic_sample(
 #create multiple synthetic data
 def create_synthetic_replicates(
     adata_panel1,
-    uni_panel1,
+    uni_panel1_normed,
     stats,
     alpha_list        = [0.25, 0.5, 0.75, 1.0],
     n_seeds_per_alpha = 3,
     noise_scale       = 1.0,
     seed0             = 0,
     spatial_key       = "spatial",
-    recenter          = True,
+    RECENTER          = True,
 ):
     """
     Create multiple synthetic replicates sweeping alpha and random seeds.
@@ -204,13 +214,13 @@ def create_synthetic_replicates(
             seed = seed0 + rep
             fake = create_synthetic_sample(
                 adata_panel1 = adata_panel1,
-                uni_panel1   = uni_panel1,
+                uni_panel1_normed   = uni_panel1_normed,
                 stats        = stats,
                 alpha        = alpha,
                 noise_scale  = noise_scale,
                 random_seed  = seed,
                 spatial_key  = spatial_key,
-                recenter     = recenter,
+                RECENTER     = RECENTER,
             )
             fake['replicate'] = rep
             fakes.append(fake)
