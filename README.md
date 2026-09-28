@@ -1,1 +1,1 @@
-# HINGE(HIstomorphology and geNe guided spatially adjacent panel Expansion)
+# HINGE(HIstomorphology and geNe guided Expansion of spatially adjacent panels)
