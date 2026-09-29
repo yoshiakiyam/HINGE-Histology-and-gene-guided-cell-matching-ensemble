@@ -111,7 +111,7 @@ def compute_population_diff_stats(
     overlap_genes,
     spatial_key_p1="spatial",
     spatial_key_p2="spatial_registered",
-    max_match_dist=40.0,
+    max_match_dist=None,
 ):
     """
     Compute population-level difference statistics + empirical spatial displacement field.
@@ -143,10 +143,14 @@ def compute_population_diff_stats(
     nn_disp = xy_p2[nn_idx] - xy_p1
 
     #if too many cells are filterd out due to max_match_dist, keep all of them
-    keep_mask = nn_dist <= max_match_dist
-    if keep_mask.sum() < 10:
-        print(f"  Warning: only {keep_mask.sum()} matches within {max_match_dist} um; "
-              f"falling back to all nearest neighbors.")
+    if max_match_dist is not None:
+        keep_mask = nn_dist <= max_match_dist
+        if keep_mask.sum() < 10:
+            print(f"  Warning: only {keep_mask.sum()} matches within {max_match_dist} um; "
+                  f"falling back to all nearest neighbors.")
+            keep_mask = np.ones(len(xy_p1), dtype=bool)
+
+    else:
         keep_mask = np.ones(len(xy_p1), dtype=bool)
 
     # robust summary

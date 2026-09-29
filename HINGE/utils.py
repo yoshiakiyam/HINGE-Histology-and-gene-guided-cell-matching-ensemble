@@ -35,9 +35,9 @@ def _mean_and_std(arr, axis=0):
 
 
 #return the PCA-transformed expression values for the given genes in the adata object
-def get_expr_pca(adata, genes, pca, normalize_expr=False):
+def get_expr_pca(adata, genes, pca, NORMALIZE_EXPR=False):
     
-    if normalize_expr:
+    if NORMALIZE_EXPR:
         a = adata[:, genes].copy()
         sc.pp.normalize_total(a)
         sc.pp.log1p(a)
