@@ -363,7 +363,10 @@ def run_synthetic_evaluation(
     SAMPLE_NAME       = "s1", #For labels
     RECENTER          = False, #recentes the fake cells after created
     NORMALIZE_EXPR    = False, #True if the original xenium data is not normalized
-    N_PCA_MORPH = 256
+    N_PCA_MORPH = 256,
+    xy_method="displacement_field",
+    xy_k=20,
+    xy_local_noise_weight=0.25,
 ):
     """
     Full pipeline:
@@ -375,9 +378,9 @@ def run_synthetic_evaluation(
     # Step 1: stats
     stats = compute_population_diff_stats(
         adata_panel1   = adata_panel1,
-        uni_panel1_normed     = uni_panel1_normed.X,
+        uni_panel1_normed     = uni_panel1_normed,
         adata_panel2   = adata_panel2,
-        uni_panel2_normed     = uni_panel2_normed.X,
+        uni_panel2_normed     = uni_panel2_normed,
         overlap_genes  = overlap_genes,
         spatial_key_p1 = spatial_key_p1,
         spatial_key_p2 = spatial_key_p2,
@@ -393,6 +396,9 @@ def run_synthetic_evaluation(
         noise_scale       = noise_scale,
         spatial_key       = spatial_key_p1,
         RECENTER          = RECENTER,
+        xy_method="displacement_field",
+        xy_k=20,
+        xy_local_noise_weight=0.25,
     )
 
     # Step 3: evaluate
