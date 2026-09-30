@@ -4,9 +4,10 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import pandas as pd
 
-from HINGE.synthetic_data_whole import compute_population_diff_stats,create_synthetic_sample,create_synthetic_replicates
+from HINGE.synthetic_data_whole import create_synthetic_sample,create_synthetic_replicates
+from HINGE.utils import compute_population_diff_stats
 from HINGE.matching_with_global_assignment import run_all_strategies
-from HINGE.utils import _uni_matrix, _xy, get_expr_pca
+from HINGE.utils import _uni_matrix, _xy, get_expr_pca, calculate_median_nn_dist
 from HINGE.feature_mapping import prepare_morphology_features
 
 
@@ -267,7 +268,7 @@ def evaluate_synthetic(
     morph_t,
     expr_orig,
     expr_t,
-    MAX_DIST=50.0,
+    MAX_DIST=None,
     k_candidates=20,
     pair_label="",
     spatial_key="spatial"
@@ -281,6 +282,13 @@ def evaluate_synthetic(
     gt = s_t["ground_truth"]
     n = len(xy_orig)
 
+    if MAX_DIST is None:
+        print("MAX_DIST is calculated automatically")
+        
+        nn_dist = calculate_median_nn_dist(xy_orig, xy_t)
+        print(f"Median nn dist is : {nn_dist}")
+        MAX_DIST = round(nn_dist*2)
+        print(f"Using MAX DIST: {round(nn_dist*2)}")
 
 
     match_results = run_all_strategies(
@@ -358,7 +366,7 @@ def run_synthetic_evaluation(
     alpha_list        = [0.25, 0.5, 0.75, 1.0],
     n_seeds_per_alpha = 3,
     noise_scale       = 1.0,
-    MAX_DIST          = 30,
+    MAX_DIST          = None,
     k_candidates      = 20,
     SAMPLE_NAME       = "s1", #For labels
     RECENTER          = False, #recentes the fake cells after created
@@ -396,9 +404,9 @@ def run_synthetic_evaluation(
         noise_scale       = noise_scale,
         spatial_key       = spatial_key_p1,
         RECENTER          = RECENTER,
-        xy_method="displacement_field",
-        xy_k=20,
-        xy_local_noise_weight=0.25,
+        xy_method=xy_method,
+        xy_k=xy_k,
+        xy_local_noise_weight=xy_local_noise_weight,
     )
 
     # Step 3: evaluate

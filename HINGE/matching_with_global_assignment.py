@@ -127,7 +127,7 @@ while favoring shorter distances.
 def match_distance_only(
     xy_panel1,
     xy_panel2_reg,
-    max_dist=50.0,
+    max_dist,
     k_candidates=None,
 ):
 
@@ -180,7 +180,7 @@ def match_feature_only(
     feat_panel2,
     xy_panel1,
     xy_panel2_reg,
-    max_dist=50.0,
+    max_dist,
     k_candidates=None,
     label="feature",
     threshold=None,
@@ -234,9 +234,9 @@ def match_combined(
     feat2_panel2,
     xy_panel1,
     xy_panel2_reg,
+    max_dist,
     w1=0.5,
     w2=0.5,
-    max_dist=50.0,
     k_candidates=None,
     threshold=None,
 ):
@@ -291,7 +291,7 @@ def run_all_strategies(
     morph_panel2,
     expr_panel1,
     expr_panel2,
-    max_dist=50.0,
+    max_dist=None,
     k_candidates=None,
     pair_label="",
     threshold=None,
@@ -335,9 +335,9 @@ def run_all_strategies(
             expr_panel2,
             xy_panel1,
             xy_panel2_reg,
+            max_dist=max_dist,
             w1=0.5,
             w2=0.5,
-            max_dist=max_dist,
             k_candidates=k_candidates,
             threshold=threshold,
         ),
@@ -346,22 +346,3 @@ def run_all_strategies(
     
     
     
-#how to run this
-
-'''
-
-results = run_all_strategies(
-    xy_panel1,
-    xy_panel2_reg,
-    morph_panel1,
-    morph_panel2,
-    expr_panel1,
-    expr_panel2,
-    max_dist=50.0,
-    k_candidates=None,
-    threshold=0.80,
-    pair_label="480 vs 5k",
-)
-
-
-'''
