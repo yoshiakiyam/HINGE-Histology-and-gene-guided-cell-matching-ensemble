@@ -57,6 +57,19 @@ def calculate_median_nn_dist(xy_p1, xy_p2
     #get the closest point of p2 for every point in p1, 
     # then calculate the distance for each point
     nn_dist, _ = tree.query(xy_p1)
+
+
+    p50  = float(np.percentile(nn_dist, 50))
+    p75  = float(np.percentile(nn_dist, 75))
+    p90  = float(np.percentile(nn_dist, 90))
+    p95  = float(np.percentile(nn_dist, 95))
+    p99  = float(np.percentile(nn_dist, 99))
+
+    print(f"  Core NN dist p50     : {p50:.2f} um")
+    print(f"  Core NN dist p75     : {p75:.2f} um")
+    print(f"  Core NN dist p90     : {p90:.2f} um")
+    print(f"  Core NN dist p95     : {p95:.2f} um")
+    print(f"  Core NN dist p95     : {p99:.2f} um")
     
     return np.median(nn_dist)
 

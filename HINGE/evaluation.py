@@ -291,6 +291,8 @@ def evaluate_synthetic(
         print(f"Using MAX DIST: {round(nn_dist*2)}")
 
 
+
+
     match_results = run_all_strategies(
         xy_panel1=xy_orig,
         xy_panel2_reg=xy_t,
