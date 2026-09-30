@@ -3,6 +3,8 @@ import numpy as np
 from scipy.spatial import cKDTree
 from scipy.optimize import linear_sum_assignment
 
+from HINGE.utils import calculate_nn_dist
+
 
 def _global_assignment(
     xy_panel1,
@@ -291,12 +293,33 @@ def run_all_strategies(
     morph_panel2,
     expr_panel1,
     expr_panel2,
-    max_dist=None,
+    MAX_DIST=None,
     k_candidates=None,
     pair_label="",
     threshold=None,
 ):
     print(f"\n  --- {pair_label} ---")
+
+    if MAX_DIST is None:
+        print("MAX_DIST is calculated automatically")
+        
+        nn_dist = calculate_nn_dist(xy_panel1, xy_panel2_reg)
+
+        p50  = float(np.percentile(nn_dist, 50))
+        p75  = float(np.percentile(nn_dist, 75))
+        p90  = float(np.percentile(nn_dist, 90))
+        p95  = float(np.percentile(nn_dist, 95))
+        p99  = float(np.percentile(nn_dist, 99))
+    
+        print(f"  Core NN dist p50     : {p50:.2f} um")
+        print(f"  Core NN dist p75     : {p75:.2f} um")
+        print(f"  Core NN dist p90     : {p90:.2f} um")
+        print(f"  Core NN dist p95     : {p95:.2f} um")
+        print(f"  Core NN dist p99     : {p99:.2f} um")
+
+    
+        MAX_DIST = round(p90)
+        print(f"Using MAX DIST: {round(p90)}")
 
     return {
         "A_distance": match_distance_only(
