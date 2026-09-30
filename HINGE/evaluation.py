@@ -7,7 +7,7 @@ import pandas as pd
 from HINGE.synthetic_data_whole import create_synthetic_sample,create_synthetic_replicates
 from HINGE.utils import compute_population_diff_stats
 from HINGE.matching_with_global_assignment import run_all_strategies
-from HINGE.utils import _uni_matrix, _xy, get_expr_pca, calculate_median_nn_dist
+from HINGE.utils import _uni_matrix, _xy, get_expr_pca, calculate_nn_dist
 from HINGE.feature_mapping import prepare_morphology_features
 
 
@@ -285,12 +285,23 @@ def evaluate_synthetic(
     if MAX_DIST is None:
         print("MAX_DIST is calculated automatically")
         
-        nn_dist = calculate_median_nn_dist(xy_orig, xy_t)
-        print(f"Median nn dist is : {nn_dist}")
-        MAX_DIST = round(nn_dist*2)
-        print(f"Using MAX DIST: {round(nn_dist*2)}")
+        nn_dist = calculate_nn_dist(xy_orig, xy_t)
 
+        p50  = float(np.percentile(nn_dist, 50))
+        p75  = float(np.percentile(nn_dist, 75))
+        p90  = float(np.percentile(nn_dist, 90))
+        p95  = float(np.percentile(nn_dist, 95))
+        p99  = float(np.percentile(nn_dist, 99))
+    
+        print(f"  Core NN dist p50     : {p50:.2f} um")
+        print(f"  Core NN dist p75     : {p75:.2f} um")
+        print(f"  Core NN dist p90     : {p90:.2f} um")
+        print(f"  Core NN dist p95     : {p95:.2f} um")
+        print(f"  Core NN dist p99     : {p99:.2f} um")
 
+    
+        MAX_DIST = round(p90)
+        print(f"Using MAX DIST: {round(p90)}")
 
 
     match_results = run_all_strategies(
