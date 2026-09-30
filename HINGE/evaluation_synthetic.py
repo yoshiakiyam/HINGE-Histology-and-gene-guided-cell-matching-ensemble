@@ -569,7 +569,6 @@ def run_synthetic_evaluation_with_dropout(
 
         # Step 3: Apply dropout
         dropout_result = apply_dropout(
-            fake          = fake,
             adata_panel1  = adata_panel1,
             dropout_frac  = dropout_frac,
             dropout_mode  = dropout_mode,
