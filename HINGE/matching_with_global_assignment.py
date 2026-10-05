@@ -5,7 +5,6 @@ from scipy.optimize import linear_sum_assignment
 
 from HINGE.utils import calculate_nn_dist
 
-
 def _global_assignment(
     xy_panel1,
     xy_panel2_reg,
@@ -239,8 +238,8 @@ def match_combined(
     max_dist,
     w1=0.5,
     w2=0.5,
-    k_candidates=None,
-    threshold=None,
+    k_candidates=None, # num of candidate matches to consider for global assignment
+    threshold=None, # minimum similarity score for a match to be considered
 ):
     #calculate combined score for two features using weights w1 and w2
     def combined_score(i, j):
@@ -281,6 +280,97 @@ def match_combined(
     return matched_p1, matched_p2
 
 
+    
+    
+##################################################################################
+
+from HINGE.gene_agreement import compute_gene_agreement_population, build_weighted_expression_features
+from HINGE.utils import get_overlapping_genes
+from HINGE.feature_mapping import prepare_morphology_features, prepare_expression_features
+def run_hinge(
+    xy_panel1,
+    xy_panel2_reg,
+    morph_panel1,#NOT PCA COMPRESSED
+    morph_panel2,#NOT PCA COMPRESSED
+    expr_panel1,#NOT PCA COMPRESSED
+    expr_panel2,#NOT PCA COMPRESSED
+    MAX_DIST=None,
+    k_candidates=None,
+    threshold=None,
+    N_PCA_MORPH = 256,
+    n_gene_comps = 128
+):
+    if MAX_DIST is None:
+        #automatically set distance
+        print("MAX_DIST is calculated automatically")
+        
+        nn_dist = calculate_nn_dist(xy_panel1, xy_panel2_reg)
+
+        p50  = float(np.percentile(nn_dist, 50))
+        p75  = float(np.percentile(nn_dist, 75))
+        p90  = float(np.percentile(nn_dist, 90))
+        p95  = float(np.percentile(nn_dist, 95))
+        p99  = float(np.percentile(nn_dist, 99))
+    
+        print(f"  Core NN dist p50     : {p50:.2f} um")
+        print(f"  Core NN dist p75     : {p75:.2f} um")
+        print(f"  Core NN dist p90     : {p90:.2f} um")
+        print(f"  Core NN dist p95     : {p95:.2f} um")
+        print(f"  Core NN dist p99     : {p99:.2f} um")
+
+    
+        MAX_DIST = round(p90)
+        print(f"Using MAX DIST: {round(p90)}")
+        
+        
+    
+    overlapping_genes = get_overlapping_genes(expr_panel1, expr_panel2)
+    print(f"  Overlapping genes across all samples: {len(overlapping_genes)}")
+    
+    
+    gene_stats = compute_gene_agreement_population(expr_panel1, expr_panel2, overlapping_genes,
+                                                   min_detection_rate=0.05,
+                                                   max_log2fc=1.0,
+                                                   verbose = True)
+    
+    weighted_expr_p1, weighted_expr_p2, _, w_expr = build_weighted_expression_features(
+        expr_panel1,
+        expr_panel2,
+        gene_stats,
+        min_r          = 0.0,      # min agreement_score to include in the gene to use
+        top_n_genes    = None,
+        normalize_expr = False,
+        verbose        = True,
+    )
+    
+    
+    # ── Prepare features ──────────────────────────────────────────────────────
+    morph_p1_extracted_list, morph_pl2_extracted_list, morph_pca = prepare_morphology_features(
+        [morph_panel1], [morph_panel2], N_PCA_MORPH=N_PCA_MORPH
+    )
+    
+    w_expr_extracted_p1_list, w_expr_extracted_p2_list, expr_pca, overlap_genes = prepare_expression_features(
+    [weighted_expr_p1],[weighted_expr_p2], n_comps=n_gene_comps)
+    
+    return  match_combined(
+                morph_p1_extracted_list[0],
+                morph_pl2_extracted_list[0],
+                w_expr_extracted_p1_list[0],
+                w_expr_extracted_p2_list[0],
+                xy_panel1,
+                xy_panel2_reg,
+                max_dist=MAX_DIST,
+                w1=1-w_expr,
+                w2=w_expr,
+                k_candidates=k_candidates,
+                threshold=threshold,
+            )
+    
+####################################################################################################
+
+
+
+
 
 '''
 Run all matching strategies (distance, histology, expression, combined) and print results.
@@ -297,6 +387,9 @@ def run_all_strategies(
     k_candidates=None,
     pair_label="",
     threshold=None,
+    extracted = True,
+    N_PCA_MORPH = 256,
+    n_gene_comps = 128
 ):
     print(f"\n  --- {pair_label} ---")
 
@@ -320,75 +413,130 @@ def run_all_strategies(
     
         MAX_DIST = round(p90)
         print(f"Using MAX DIST: {round(p90)}")
-
-    return {
-        "A_distance": match_distance_only(
-            xy_panel1,
-            xy_panel2_reg,
-            MAX_DIST,
-            k_candidates,
-        ),
-
-        "B_histology": match_feature_only(
-            morph_panel1,
-            morph_panel2,
-            xy_panel1,
-            xy_panel2_reg,
-            MAX_DIST,
-            k_candidates,
-            label="B histology",
-            threshold=threshold,
-        ),
-
-        "C_expression": match_feature_only(
-            expr_panel1,
-            expr_panel2,
-            xy_panel1,
-            xy_panel2_reg,
-            MAX_DIST,
-            k_candidates,
-            label="C expression",
-            threshold=threshold,
-        ),
-
-        "D_combined": match_combined(
-            morph_panel1,
-            morph_panel2,
-            expr_panel1,
-            expr_panel2,
-            xy_panel1,
-            xy_panel2_reg,
-            max_dist=MAX_DIST,
-            w1=0.5,
-            w2=0.5,
-            k_candidates=k_candidates,
-            threshold=threshold,
-        ),
-    }
-    
-    
-    
-    
-    
-    
-##############################################################################
-
-
-
-def run_hinge(
-    xy_panel1,
-    xy_panel2_reg,
-    morph_panel1,
-    morph_panel2,
-    expr_panel1,
-    expr_panel2,
-    MAX_DIST=None,
-    k_candidates=None,
-    pair_label="",
-    threshold=None,
-):
-    if MAX_DIST is None:
-        #automatically set distance
         
         
         
+    if extracted:
+        result_dict= {
+            "A_distance": match_distance_only(
+                xy_panel1,
+                xy_panel2_reg,
+                MAX_DIST,
+                k_candidates,
+            ),
+
+            "B_histology": match_feature_only(
+                morph_panel1,
+                morph_panel2,
+                xy_panel1,
+                xy_panel2_reg,
+                MAX_DIST,
+                k_candidates,
+                label="B histology",
+                threshold=threshold,
+            ),
+
+            "C_expression": match_feature_only(
+                expr_panel1,
+                expr_panel2,
+                xy_panel1,
+                xy_panel2_reg,
+                MAX_DIST,
+                k_candidates,
+                label="C expression",
+                threshold=threshold,
+            ),
+
+            "D_combined": match_combined(
+                morph_panel1,
+                morph_panel2,
+                expr_panel1,
+                expr_panel2,
+                xy_panel1,
+                xy_panel2_reg,
+                max_dist=MAX_DIST,
+                w1=0.5,
+                w2=0.5,
+                k_candidates=k_candidates,
+                threshold=threshold,
+            ),
+        }
+        
+    else:
+        # ── Prepare features ──────────────────────────────────────────────────────
+        morph_p1_extracted_list, morph_pl2_extracted_list, morph_pca = prepare_morphology_features(
+            [morph_panel1], [morph_panel2], N_PCA_MORPH=N_PCA_MORPH
+        )
+    
+        expr_extracted_p1_list, expr_extracted_p2_list, expr_pca, overlap_genes = prepare_expression_features(
+        [expr_panel1],[expr_panel2], n_comps=n_gene_comps)
+        
+        morph_extracted_p1 = morph_p1_extracted_list[0]
+        morph_extracted_p2 = morph_pl2_extracted_list[0]        
+        expr_extracted_p1 = expr_extracted_p1_list[0]
+        expr_extracted_p2 = expr_extracted_p2_list[0]
+    
+        result_dict= {
+            "A_distance": match_distance_only(
+                xy_panel1,
+                xy_panel2_reg,
+                MAX_DIST,
+                k_candidates,
+            ),
+
+            "B_histology": match_feature_only(
+                morph_extracted_p1,
+                morph_extracted_p2,
+                xy_panel1,
+                xy_panel2_reg,
+                MAX_DIST,
+                k_candidates,
+                label="B histology",
+                threshold=threshold,
+            ),
+
+            "C_expression": match_feature_only(
+                expr_extracted_p1,
+                expr_extracted_p2,
+                xy_panel1,
+                xy_panel2_reg,
+                MAX_DIST,
+                k_candidates,
+                label="C expression",
+                threshold=threshold,
+            ),
+
+            "D_combined": match_combined(
+                morph_extracted_p1,
+                morph_extracted_p2,
+                expr_extracted_p1,
+                expr_extracted_p2,
+                xy_panel1,
+                xy_panel2_reg,
+                max_dist=MAX_DIST,
+                w1=0.5,
+                w2=0.5,
+                k_candidates=k_candidates,
+                threshold=threshold,
+            ),
+            "E_HINGE": run_hinge(
+                xy_panel1,
+                xy_panel2_reg,
+                morph_panel1,#NOT PCA COMPRESSED
+                morph_panel2,#NOT PCA COMPRESSED
+                expr_panel1,#NOT PCA COMPRESSED
+                expr_panel2,#NOT PCA COMPRESSED
+                MAX_DIST=None,
+                k_candidates=None,
+                threshold=None,
+                N_PCA_MORPH = N_PCA_MORPH,
+                n_gene_comps = n_gene_comps
+            )
+        }
+        
+    return result_dict
+    
+    
+    
+    
+    

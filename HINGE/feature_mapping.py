@@ -20,7 +20,7 @@ import scanpy as sc
     Returns two lists of L2-normalized arrays aligned to `pairs`.
 """
 def prepare_morphology_features(uni_panel1_list, uni_panel2_list,
-                                  n_pca_comps=100):
+                                  N_PCA_MORPH=100):
 
     print("=" * 55)
     print("  Preparing morphology features (UNI embeddings)")
@@ -36,7 +36,7 @@ def prepare_morphology_features(uni_panel1_list, uni_panel2_list,
 
 
 
-    n_comps_actual = min(n_pca_comps, all_X.shape[1] - 1) #get the number of components, either n_pca_comps or the number of features - 1, whichever is smaller
+    n_comps_actual = min(N_PCA_MORPH, all_X.shape[1] - 1) #get the number of components, either N_PCA_MORPH or the number of features - 1, whichever is smaller
     
     # Fit PCA on all samples combined
     print(f"  Fitting PCA on {all_X.shape} UNI features "
@@ -46,8 +46,8 @@ def prepare_morphology_features(uni_panel1_list, uni_panel2_list,
     print(f"  Variance retained: {pca.explained_variance_ratio_.sum():.1%}")
     del all_X
 
-    morph_480_list = []
-    morph_5k_list  = []
+    morph_panel1_list = []
+    morph_panel2_list = []
     
     
     # Transform and normalize each panel's UNI features
@@ -60,11 +60,11 @@ def prepare_morphology_features(uni_panel1_list, uni_panel2_list,
         m_panel1 = normalize(pca.transform(X_panel1.astype(np.float32)))
         m_panel2  = normalize(pca.transform(X_panel2.astype(np.float32)))
 
-        morph_480_list.append(m_panel1)
-        morph_5k_list.append(m_panel2)
+        morph_panel1_list.append(m_panel1)
+        morph_panel2_list.append(m_panel2)
         print( f"panel 1 morph {m_panel1.shape}, panel 2 morph {m_panel2.shape}")
 
-    return morph_480_list, morph_5k_list, pca
+    return morph_panel1_list, morph_panel2_list, pca
 
 #normalize and log transform expression data 
 def get_normalized_X(adata, genes):
@@ -75,19 +75,14 @@ def get_normalized_X(adata, genes):
         return X
     
 
+from HINGE.utils import get_overlapping_genes
 def prepare_expression_features(rna_panel1, rna_panel2, n_comps=50, normalize_expr = False):
 
     print("\n" + "=" * 55)
     print("  Preparing expression features (overlapping genes PCA)")
     print("=" * 55)
 
-    # Find genes overlapping across ALL samples
-    overlap_genes = set(rna_panel1[0].var_names)
-    for sample in rna_panel1[1:] + rna_panel2:
-        overlap_genes &= set(sample.var_names)
-        
-        
-    overlap_genes = sorted(overlap_genes)
+    overlap_genes = get_overlapping_genes(rna_panel1, rna_panel2)
     print(f"  Overlapping genes across all samples: {len(overlap_genes)}")
 
     

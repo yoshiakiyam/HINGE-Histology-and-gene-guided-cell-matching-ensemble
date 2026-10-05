@@ -186,8 +186,8 @@ def build_weighted_expression_features(
 
     Returns
     -------
-    expr_p1  : (n1, n_pca_comps) L2-normalized
-    expr_p2  : (n2, n_pca_comps) L2-normalized
+    expr_p1  : (n1, N_PCA_MORPH) L2-normalized
+    expr_p2  : (n2, N_PCA_MORPH) L2-normalized
     selected : list of str
     w_expr   : float in [0, 0.5]
         Adaptive weight for expression in combined matching.

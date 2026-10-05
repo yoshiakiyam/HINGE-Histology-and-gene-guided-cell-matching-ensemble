@@ -34,7 +34,11 @@ def evaluate_synthetic(
     MAX_DIST=None,
     k_candidates=20,
     pair_label="",
-    spatial_key="spatial"
+    spatial_key="spatial",
+    threshold=None,
+    extracted = True,
+    N_PCA_MORPH = 256,
+    n_gene_comps = 128
 ):
     """
     Match s_orig to fake section s_t. Accuracy is the fraction of matched
@@ -57,6 +61,10 @@ def evaluate_synthetic(
         MAX_DIST=MAX_DIST,
         k_candidates=k_candidates,
         pair_label=pair_label,
+        threshold=threshold,
+        extracted=extracted,
+        N_PCA_MORPH=N_PCA_MORPH,
+        n_gene_comps=n_gene_comps,
     )
 
     results = {}
@@ -107,7 +115,8 @@ def evaluate_synthetic(
     return results
 
 
-
+from HINGE.feature_mapping import prepare_expression_features
+from sklearn.preprocessing import normalize
 def run_synthetic_evaluation(
     adata_panel1,
     uni_panel1_normed,
@@ -115,7 +124,6 @@ def run_synthetic_evaluation(
     uni_panel2_normed,
 
     expr_panel1,
-    expr_pca,
     overlap_genes,    
     spatial_key_p1    = "spatial",
     spatial_key_p2    = "spatial_registered",
@@ -127,11 +135,16 @@ def run_synthetic_evaluation(
     SAMPLE_NAME       = "s1", #For labels
     RECENTER          = False, #recentes the fake cells after created
     NORMALIZE_EXPR    = False, #True if the original xenium data is not normalized
-    N_PCA_MORPH = 256,
     xy_method="displacement_field",
     xy_k=20,
     xy_local_noise_weight=0.25,
+    
+    threshold=None,
+    N_PCA_MORPH = 256,
+    n_gene_comps = 128,
+    run_hinge= False # if true, activate the HINGE matching strategy
 ):
+    
     """
     Full pipeline:
         1. Compute population diff stats (panel1 vs panel2)
@@ -180,36 +193,66 @@ def run_synthetic_evaluation(
         print(f"{'='*58}")
         
         
-        # ── Prepare features ──────────────────────────────────────────────────────
-        morph_panel1_list, morph_fake_list, morph_pca = prepare_morphology_features(
-            [uni_panel1_normed], [fake["uni"]], n_pca_comps=N_PCA_MORPH
-        )
-    
+        if run_hinge:
+            eval_results = evaluate_synthetic(
+                s_orig         = adata_panel1,
+                s_t            = fake,
+                
+                morph_orig     = morph_panel1_list[0],
+                morph_t        = morph_fake_list[0],
+                
+                expr_orig      = expr_panel1,
+                expr_t         = fake["adata"],
+                
+                MAX_DIST       = MAX_DIST,
+                k_candidates   = k_candidates,
+                pair_label     = f"{SAMPLE_NAME} α={alpha:.2f} rep={rep+1}",
+                spatial_key    = spatial_key_p1,
+                
+                threshold      = threshold,
+                extracted      = True,
+                N_PCA_MORPH    = N_PCA_MORPH,
+                n_gene_comps   = n_gene_comps,
+            )
         
+        if not run_hinge:
         
-        expr_t = get_expr_pca(
-        fake["adata"], overlap_genes, expr_pca, NORMALIZE_EXPR=NORMALIZE_EXPR
-        )
+            
+            # ── Prepare features ──────────────────────────────────────────────────────
+            morph_panel1_list, morph_fake_list, morph_pca = prepare_morphology_features(
+                [uni_panel1_normed], [fake["uni"]], N_PCA_MORPH=N_PCA_MORPH
+            )
+        
+            expr_extracted_p1_list, expr_extracted_p2_list, expr_pca, overlap_genes = prepare_expression_features(
+            [expr_panel1],[fake["adata"]], n_comps=n_gene_comps)
+            
 
-        #print(f"expr_pca type: {type(expr_pca)}   expr_t: {type(expr_t)} ")
-        
-        #add feature extraction step
+            #print(f"expr_pca type: {type(expr_pca)}   expr_t: {type(expr_t)} ")
+            
+            #add feature extraction step
 
-        eval_results = evaluate_synthetic(
-            s_orig         = adata_panel1,
-            s_t            = fake,
+            eval_results = evaluate_synthetic(
+                s_orig         = adata_panel1,
+                s_t            = fake,
+                
+                morph_orig     = morph_panel1_list[0],
+                morph_t        = morph_fake_list[0],
+                
+                expr_orig      = expr_extracted_p1_list[0],
+                expr_t         = expr_extracted_p2_list[0],
+                
+                MAX_DIST       = MAX_DIST,
+                k_candidates   = k_candidates,
+                pair_label     = f"{SAMPLE_NAME} α={alpha:.2f} rep={rep+1}",
+                spatial_key    = spatial_key_p1,
+                
+                threshold      = threshold,
+                extracted      = True,
+                N_PCA_MORPH    = N_PCA_MORPH,
+                n_gene_comps   = n_gene_comps,
+            )
             
-            morph_orig     = morph_panel1_list[0],
-            morph_t        = morph_fake_list[0],
             
-            expr_orig      = expr_panel1,
-            expr_t         = expr_t,
-            
-            MAX_DIST       = MAX_DIST,
-            k_candidates   = k_candidates,
-            pair_label     = f"{SAMPLE_NAME} α={alpha:.2f} rep={rep+1}",
-            spatial_key    = spatial_key_p1
-        )
 
         for strategy in strategies:
             rec = eval_results[strategy]
@@ -353,8 +396,12 @@ def evaluate_synthetic_with_dropout(
     expr_t,
     MAX_DIST     = None,
     k_candidates = 20,
-    pair_label   = "",
-    spatial_key  = "spatial",
+    pair_label="",
+    spatial_key="spatial",
+    threshold=None,
+    extracted = True,
+    N_PCA_MORPH = 256,
+    n_gene_comps = 128
 ):
     """
     Evaluate matching strategies on a synthetic pair with cell dropout.
@@ -417,6 +464,10 @@ def evaluate_synthetic_with_dropout(
         MAX_DIST      = MAX_DIST,
         k_candidates  = k_candidates,
         pair_label    = pair_label,
+        threshold=threshold,
+        extracted = extracted,
+        N_PCA_MORPH = N_PCA_MORPH,
+        n_gene_comps = n_gene_comps
     )
 
     results = {}
@@ -509,11 +560,19 @@ def run_synthetic_evaluation_with_dropout(
     RECENTER          = False,
     NORMALIZE_EXPR    = False,
     N_PCA_MORPH       = 256,
+    n_gene_comps = 128,
     xy_method         = "displacement_field",
     xy_k              = 20,
     xy_local_noise_weight = 0.25,
     dropout_frac      = 0.10,
     dropout_mode      = "independent",
+    
+    
+    
+
+    threshold=None,
+    
+    evaluate_hinge = False
 ):
     """
     Synthetic evaluation with cell dropout.
@@ -574,33 +633,62 @@ def run_synthetic_evaluation_with_dropout(
             dropout_mode  = dropout_mode,
             random_seed   = rep * 777 + 42,  # different seed per replicate
         )
+        
+        if evaluate_hinge:
+            eval_results = evaluate_synthetic(
+                s_orig         = adata_panel1,
+                s_t            = fake,
+                
+                morph_orig     = uni_panel1_normed,
+                morph_t        = uni_panel2_normed,
+                
+                expr_orig      = expr_panel1,
+                expr_t         = fake["adata"],
+                
+                MAX_DIST       = MAX_DIST,
+                k_candidates   = k_candidates,
+                pair_label     = f"{SAMPLE_NAME} α={alpha:.2f} rep={rep+1}",
+                spatial_key    = spatial_key_p1,
+                
+                threshold      = threshold,
+                extracted      = True,
+                N_PCA_MORPH    = N_PCA_MORPH,
+                n_gene_comps   = n_gene_comps,
+            )   
+        
+        elif evaluate_hinge is False:
+            # Step 4: Prepare features
+            morph_list_orig, morph_list_fake, _ = prepare_morphology_features(
+                [uni_panel1_normed], [fake["uni"]], N_PCA_MORPH=N_PCA_MORPH
+            )
+            morph_orig = morph_list_orig[0]   # (n_full, d)
+            morph_t    = morph_list_fake[0]   # (n_full, d)
 
-        # Step 4: Prepare features
-        morph_list_orig, morph_list_fake, _ = prepare_morphology_features(
-            [uni_panel1_normed], [fake["uni"]], n_pca_comps=N_PCA_MORPH
-        )
-        morph_orig = morph_list_orig[0]   # (n_full, d)
-        morph_t    = morph_list_fake[0]   # (n_full, d)
+            
+            
+            expr_extracted_p1_list, expr_extracted_p2_list, _, overlap_genes = prepare_expression_features(
+            [expr_panel1],[fake["adata"]], n_comps=n_gene_comps)
+                        
 
-        expr_t = get_expr_pca(
-            fake["adata"], overlap_genes, expr_pca,
-            NORMALIZE_EXPR=NORMALIZE_EXPR
-        )
-
-        # Step 5: Evaluate with dropout
-        eval_results = evaluate_synthetic_with_dropout(
-            s_orig         = adata_panel1,
-            fake           = fake,
-            dropout_result = dropout_result,
-            morph_orig     = morph_orig,
-            morph_t        = morph_t,
-            expr_orig      = expr_panel1,
-            expr_t         = expr_t,
-            MAX_DIST       = MAX_DIST,
-            k_candidates   = k_candidates,
-            pair_label     = f"{SAMPLE_NAME} α={alpha:.2f} rep={rep+1}",
-            spatial_key    = spatial_key_p1,
-        )
+            # Step 5: Evaluate with dropout
+            eval_results = evaluate_synthetic_with_dropout(
+                s_orig         = adata_panel1,
+                fake           = fake,
+                dropout_result = dropout_result,
+                morph_orig     = morph_orig,
+                morph_t        = morph_t,
+                expr_orig      = expr_extracted_p1_list[0],
+                expr_t         = expr_extracted_p2_list[0],
+                MAX_DIST       = MAX_DIST,
+                k_candidates   = k_candidates,
+                pair_label     = f"{SAMPLE_NAME} α={alpha:.2f} rep={rep+1}",
+                spatial_key    = spatial_key_p1,
+                threshold      = threshold,
+                extracted      = True,
+                N_PCA_MORPH    = None, #no need to set this parameter since feature has been extracted
+                n_gene_comps   =  None #no need to set this parameter since feature has been extracted
+            )
+            
 
         for strategy in strategies:
             rec = eval_results[strategy]

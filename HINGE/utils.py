@@ -181,3 +181,11 @@ def compute_population_diff_stats(
     print(f"    delta_std    median = {np.median(delta_std_expr):.4f}")
 
     return stats
+
+
+
+def get_overlapping_genes(rna_panel1, rna_panel2):
+    overlap_genes = set(rna_panel1[0].var_names)
+    for sample in rna_panel1[1:] + rna_panel2:
+        overlap_genes &= set(sample.var_names)
+    return sorted(overlap_genes)
