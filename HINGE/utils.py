@@ -61,6 +61,15 @@ def calculate_nn_dist(xy_p1, xy_p2
     return nn_dist
 
 
+def _get_X(adata, genes, normalize_expr):
+    a = adata[:, genes].copy()
+    if normalize_expr:
+        sc.pp.normalize_total(a)
+        sc.pp.log1p(a)
+    X = a.X.toarray() if issparse(a.X) else np.array(a.X)
+    return X.astype(np.float32)
+
+
 def compute_population_diff_stats(
     adata_panel1,
     uni_panel1_normed,

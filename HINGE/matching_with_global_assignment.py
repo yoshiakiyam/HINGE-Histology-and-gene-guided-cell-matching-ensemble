@@ -369,3 +369,26 @@ def run_all_strategies(
     
     
     
+    
+    
+##############################################################################
+
+
+
+def run_hinge(
+    xy_panel1,
+    xy_panel2_reg,
+    morph_panel1,
+    morph_panel2,
+    expr_panel1,
+    expr_panel2,
+    MAX_DIST=None,
+    k_candidates=None,
+    pair_label="",
+    threshold=None,
+):
+    if MAX_DIST is None:
+        #automatically set distance
+        
+        
+        
