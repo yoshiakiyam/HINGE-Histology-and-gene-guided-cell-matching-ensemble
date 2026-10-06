@@ -1,107 +1,10 @@
-import numpy as np
 from HINGE.utils import _xy, _uni_matrix, _expr_matrix, _to_dense
-from sklearn.preprocessing import normalize
 
+from sklearn.preprocessing import normalize
 import anndata as ad
-
-
-from sklearn.preprocessing import normalize
-
 from scipy.spatial import cKDTree
-
-
+import scipy.sparse as sp
 import numpy as np
-
-'''
-
-
-
-def compute_population_diff_stats(
-    adata_panel1,
-    uni_panel1_normed,      
-    adata_panel2,
-    uni_panel2_normed,     
-    overlap_genes,
-    spatial_key_p1 = "spatial",
-    spatial_key_p2 = "spatial_registered",
-):
-    """
-    Compute population-level difference statistics.
-
-    uni_panel1_normed / uni_panel2_normed:
-        Pass morph_panel1_list[i] / morph_panel2_list[i] directly.
-        These are already L2-normalized — consistent with what
-        the matching functions use for cosine similarity.
-    """
-    print("=" * 55)
-    print("  Computing population-level difference statistics")
-    print(f"  Panel1: {len(adata_panel1)} cells  |  "
-          f"Panel2: {len(adata_panel2)} cells")
-    print("=" * 55)
-
-    xy_p1   = _xy(adata_panel1, spatial_key_p1)
-    xy_p2   = _xy(adata_panel2, spatial_key_p2)
-
-    # Use normalized UNI directly 
-    uni_p1  = np.asarray(uni_panel1_normed, dtype=np.float64)
-    uni_p2  = np.asarray(uni_panel2_normed, dtype=np.float64)
-
-    expr_p1 = _expr_matrix(adata_panel1, overlap_genes)
-    expr_p2 = _expr_matrix(adata_panel2, overlap_genes)
-
-    # ── Coordinates ───────────────────────────────────────────────
-    delta_mean_x = float(xy_p2[:, 0].mean() - xy_p1[:, 0].mean())
-    delta_mean_y = float(xy_p2[:, 1].mean() - xy_p1[:, 1].mean())
-    coord_noise_std = float(
-        0.02 * np.sqrt((xy_p1.std(axis=0)**2 +
-                        xy_p2.std(axis=0)**2).mean() / 2)
-    )
-
-    # ── UNI features (normalized space) ──────────────────────────
-    mean_uni_p1 = uni_p1.mean(axis=0)
-    mean_uni_p2 = uni_p2.mean(axis=0)
-    delta_mean_uni = mean_uni_p2 - mean_uni_p1
-
-    std_uni_p1 = uni_p1.std(axis=0)
-    std_uni_p2 = uni_p2.std(axis=0)
-    delta_std_uni = np.sqrt((std_uni_p1**2 + std_uni_p2**2) / 2.0)
-
-    # ── Expression ────────────────────────────────────────────────
-    mean_expr_p1 = expr_p1.mean(axis=0)
-    mean_expr_p2 = expr_p2.mean(axis=0)
-    delta_mean_expr = mean_expr_p2 - mean_expr_p1
-
-    std_expr_p1 = expr_p1.std(axis=0)
-    std_expr_p2 = expr_p2.std(axis=0)
-    delta_std_expr = np.sqrt((std_expr_p1**2 + std_expr_p2**2) / 2.0)
-
-    stats = {
-        'delta_mean_x'    : delta_mean_x,
-        'delta_mean_y'    : delta_mean_y,
-        'coord_noise_std' : coord_noise_std,
-        'delta_mean_uni'  : delta_mean_uni,
-        'delta_std_uni'   : np.maximum(delta_std_uni, 1e-8),
-        'delta_mean_expr' : delta_mean_expr,
-        'delta_std_expr'  : np.maximum(delta_std_expr, 1e-8),
-        'overlap_genes'   : list(overlap_genes),
-        'n_panel1'        : len(adata_panel1),
-        'n_panel2'        : len(adata_panel2),
-    }
-
-    print(f"\n  Coordinate shift:")
-    print(f"    delta_mean_x    = {delta_mean_x:+.2f} um")
-    print(f"    delta_mean_y    = {delta_mean_y:+.2f} um")
-    print(f"    coord_noise_std = {coord_noise_std:.4f} um")
-    print(f"\n  UNI (normalized space, {uni_p1.shape[1]}D):")
-    print(f"    |delta_mean| median = {np.median(np.abs(delta_mean_uni)):.5f}")
-    print(f"    delta_std    median = {np.median(delta_std_uni):.5f}")
-    print(f"\n  Expression ({len(overlap_genes)} genes):")
-    print(f"    |delta_mean| median = {np.median(np.abs(delta_mean_expr)):.4f}")
-    print(f"    delta_std    median = {np.median(delta_std_expr):.4f}")
-
-    return stats
-'''
-
 
 
 
@@ -209,9 +112,10 @@ def create_synthetic_sample(
     random_seed=0,
     spatial_key="spatial",
     RECENTER=False,
-    xy_method="displacement_field",   # NEW
-    xy_k=20,                          # NEW
-    xy_local_noise_weight=0.25,       # NEW
+    xy_method="displacement_field",   
+    xy_k=20,                          
+    xy_local_noise_weight=0.25,      
+    overlap_genes=None,            # if provided, subset fake adata
 ):
     """
     Create synthetic s1_t using normalized UNI features.
@@ -283,18 +187,57 @@ def create_synthetic_sample(
         expr_p1 + alpha * stats['delta_mean_expr'] + expr_noise,
         0, None
     )
+    # ── AnnData ───────────────────────────────
+    # Subset fake adata to overlap genes only.
+    # This prevents any method from accidentally using panel1-exclusive
+    # genes that don't exist in panel2.
+    #
+    # stats['overlap_genes'] = 444 genes (real intersection)
+    # overlap_genes parameter = same 444 genes passed explicitly
+    #
+    # Use whichever is provided; fall back to stats['overlap_genes']
+    genes_to_keep = overlap_genes if overlap_genes is not None \
+                    else stats['overlap_genes']
 
-    # ── AnnData ───────────────────────────────────────────────────
-    adata_t = adata_panel1.copy()
-    adata_t.obsm['spatial'] = xy_t.copy()
+    # Verify all genes_to_keep exist in panel1
+    available = set(adata_panel1.var_names)
+    missing   = [g for g in genes_to_keep if g not in available]
+    if missing:
+        raise KeyError(
+            f"{len(missing)} overlap genes missing from panel1 "
+            f"(first 5: {missing[:5]})"
+        )
 
-    X_t = _to_dense(adata_t.X)
+
+
+    # Build AnnData with ONLY overlap genes
+    X_overlapping_genes_only   = _to_dense(adata_panel1[:, genes_to_keep].X)
     gene_idx = adata_panel1.var_names.get_indexer(genes)
+
     if (gene_idx < 0).any():
-        missing = [g for g, idx in zip(genes, gene_idx) if idx < 0]
-        raise KeyError(f"genes missing from panel1: {missing[:5]}")
-    X_t[:, gene_idx] = expr_t
-    adata_t.X = X_t
+        missing_e = [g for g, i in zip(genes, gene_idx) if i < 0]
+        raise KeyError(f"noise genes missing from panel1: {missing_e[:5]}")
+
+    # Map noise genes positions into genes_to_keep order
+    # (genes_to_keep may differ from genes if overlap_genes was passed)
+    genes_to_keep_set = set(genes_to_keep)
+    noise_gene_positions = [
+        genes_to_keep.index(g) for g in genes if g in genes_to_keep_set
+    ]
+
+    # Apply expression noise to the overlap gene columns
+    for noise_pos, keep_pos in enumerate(noise_gene_positions):
+        X_overlapping_genes_only[:, keep_pos] = expr_t[:, noise_pos]
+
+    X_overlapping_genes_only = np.clip(X_overlapping_genes_only, 0, None)
+
+    # Build minimal AnnData with only overlap genes
+    adata_t = ad.AnnData(
+        X   = sp.csr_matrix(X_overlapping_genes_only),
+        obs = adata_panel1.obs.copy(),
+        var = adata_panel1[:, genes_to_keep].var.copy(),
+    )
+    adata_t.obsm['spatial'] = xy_t.copy()
 
     coord_shift = np.linalg.norm(xy_t - xy_p1, axis=1).mean()
     print(f"  Created s1_t: alpha={alpha:.2f}  seed={random_seed}  "
@@ -327,6 +270,7 @@ def create_synthetic_replicates(
     xy_method="displacement_field",
     xy_k=20,
     xy_local_noise_weight=0.25,
+    overlap_genes=None,            
 ):
     """
     Create multiple synthetic replicates sweeping alpha and random seeds.
@@ -349,6 +293,7 @@ def create_synthetic_replicates(
                 xy_method=xy_method,
                 xy_k=xy_k,
                 xy_local_noise_weight=xy_local_noise_weight,
+                overlap_genes=overlap_genes
             )
             fake['replicate'] = rep
             fakes.append(fake)

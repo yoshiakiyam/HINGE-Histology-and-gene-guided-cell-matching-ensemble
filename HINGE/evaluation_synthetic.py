@@ -612,12 +612,14 @@ def run_synthetic_evaluation_with_dropout(
         xy_method             = xy_method,
         xy_k                  = xy_k,
         xy_local_noise_weight = xy_local_noise_weight,
+        overlap_genes         = overlap_genes,
     )
 
     strategies = ["A_distance", "B_histology", "C_expression", "D_combined"]
     records    = []
 
     for fake in fakes:
+        #exoects morph and expr features to be feature extracted
         rep   = fake['replicate']
         alpha = fake['alpha']
 
