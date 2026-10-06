@@ -64,7 +64,7 @@ def evaluate_synthetic(
         threshold=threshold,
         extracted=extracted,
         N_PCA_MORPH=N_PCA_MORPH,
-        n_gene_comps=n_gene_comps,
+        n_gene_comps=n_gene_comps
     )
 
     results = {}
@@ -181,6 +181,9 @@ def run_synthetic_evaluation(
     # Step 3: evaluate
     strategies = ["A_distance", "B_histology", "C_expression", "D_combined"]
     records    = []
+
+    if run_hinge:
+        strategies.append('E_HINGE')
 
     for fake in fakes:
         rep   = fake['replicate']
@@ -656,7 +659,7 @@ def run_synthetic_evaluation_with_dropout(
                 threshold      = threshold,
                 extracted      = True,
                 N_PCA_MORPH    = N_PCA_MORPH,
-                n_gene_comps   = n_gene_comps,
+                n_gene_comps   = n_gene_comps
             )   
         
         elif evaluate_hinge is False:
@@ -689,7 +692,7 @@ def run_synthetic_evaluation_with_dropout(
                 threshold      = threshold,
                 extracted      = True,
                 N_PCA_MORPH    = None, #no need to set this parameter since feature has been extracted
-                n_gene_comps   =  None #no need to set this parameter since feature has been extracted
+                n_gene_comps   =  None, #no need to set this parameter since feature has been extracted
             )
             
 
