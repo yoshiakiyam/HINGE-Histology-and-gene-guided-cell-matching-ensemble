@@ -619,6 +619,11 @@ def run_synthetic_evaluation_with_dropout(
     )
 
     strategies = ["A_distance", "B_histology", "C_expression", "D_combined"]
+    
+    
+    if evaluate_hinge:
+        strategies.append('E_HINGE')
+        
     records    = []
 
     for fake in fakes:
@@ -641,26 +646,27 @@ def run_synthetic_evaluation_with_dropout(
         )
         
         if evaluate_hinge:
-            eval_results = evaluate_synthetic(
+            
+            eval_results = evaluate_synthetic_with_dropout(
                 s_orig         = adata_panel1,
-                s_t            = fake,
+                fake           = fake,
                 
-                morph_orig     = uni_panel1_normed,
+                dropout_result = dropout_result,
+                
+                morph_orig     = morph_orig,
                 morph_t        = fake["uni"],
                 
                 expr_orig      = adata_panel1,
                 expr_t         = fake["adata"],
-                
                 MAX_DIST       = MAX_DIST,
                 k_candidates   = k_candidates,
                 pair_label     = f"{SAMPLE_NAME} α={alpha:.2f} rep={rep+1}",
                 spatial_key    = spatial_key_p1,
-                
                 threshold      = threshold,
                 extracted      = False,
-                N_PCA_MORPH    = N_PCA_MORPH,
-                n_gene_comps   = n_gene_comps
-            )   
+                N_PCA_MORPH    = N_PCA_MORPH, #no need to set this parameter since feature has been extracted
+                n_gene_comps   =  n_gene_comps, #no need to set this parameter since feature has been extracted
+            )
         
         elif evaluate_hinge is False:
             # Step 4: Prepare features
