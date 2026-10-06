@@ -540,15 +540,12 @@ def evaluate_synthetic_with_dropout(
 
     return results
 
-
+from HINGE.utils import get_overlapping_genes
 def run_synthetic_evaluation_with_dropout(
     adata_panel1,
     uni_panel1_normed,
     adata_panel2,
     uni_panel2_normed,
-    expr_panel1,
-    expr_pca,
-    overlap_genes,
     spatial_key_p1    = "spatial",
     spatial_key_p2    = "spatial_registered",
     alpha_list        = [0.25, 0.5, 0.75, 1.0],
@@ -585,7 +582,11 @@ def run_synthetic_evaluation_with_dropout(
         sample, alpha, replicate, strategy, dropout_mode,
         accuracy_matched, accuracy_eval, coverage_eval,
         n_matched, n_eval_matched, n_correct, n_eval
+        
+        
     """
+    
+    overlap_genes = get_overlapping_genes(adata_panel1, adata_panel2)
 
     # Step 1: Stats
     stats = compute_population_diff_stats(
