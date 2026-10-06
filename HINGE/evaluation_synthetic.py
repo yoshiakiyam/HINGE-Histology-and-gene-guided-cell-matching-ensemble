@@ -586,7 +586,7 @@ def run_synthetic_evaluation_with_dropout(
         
     """
     
-    overlap_genes = get_overlapping_genes(adata_panel1, adata_panel2)
+    overlap_genes = get_overlapping_genes([adata_panel1], [adata_panel2])
 
     # Step 1: Stats
     stats = compute_population_diff_stats(

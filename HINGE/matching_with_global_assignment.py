@@ -324,7 +324,7 @@ def run_hinge(
         
         
     
-    overlapping_genes = get_overlapping_genes(expr_panel1, expr_panel2)
+    overlapping_genes = get_overlapping_genes([expr_panel1], [expr_panel2])
     print(f"  Overlapping genes across all samples: {len(overlapping_genes)}")
     
     

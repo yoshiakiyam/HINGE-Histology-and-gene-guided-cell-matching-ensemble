@@ -82,7 +82,7 @@ def prepare_expression_features(rna_panel1, rna_panel2, n_comps=50, normalize_ex
     print("  Preparing expression features (overlapping genes PCA)")
     print("=" * 55)
 
-    overlap_genes = get_overlapping_genes(rna_panel1, rna_panel2)
+    overlap_genes = get_overlapping_genes([rna_panel1], [rna_panel2])
     print(f"  Overlapping genes across all samples: {len(overlap_genes)}")
 
     
