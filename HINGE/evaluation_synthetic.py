@@ -201,7 +201,7 @@ def run_synthetic_evaluation(
                 morph_orig     = morph_panel1_list[0],
                 morph_t        = morph_fake_list[0],
                 
-                expr_orig      = expr_panel1,
+                expr_orig      = adata_panel1,
                 expr_t         = fake["adata"],
                 
                 MAX_DIST       = MAX_DIST,
@@ -224,7 +224,7 @@ def run_synthetic_evaluation(
             )
         
             expr_extracted_p1_list, expr_extracted_p2_list, expr_pca, overlap_genes = prepare_expression_features(
-            [expr_panel1],[fake["adata"]], n_comps=n_gene_comps)
+            [adata_panel1],[fake["adata"]], n_comps=n_gene_comps)
             
 
             #print(f"expr_pca type: {type(expr_pca)}   expr_t: {type(expr_t)} ")
@@ -643,7 +643,7 @@ def run_synthetic_evaluation_with_dropout(
                 morph_orig     = uni_panel1_normed,
                 morph_t        = uni_panel2_normed,
                 
-                expr_orig      = expr_panel1,
+                expr_orig      = adata_panel1,
                 expr_t         = fake["adata"],
                 
                 MAX_DIST       = MAX_DIST,
@@ -668,7 +668,7 @@ def run_synthetic_evaluation_with_dropout(
             
             
             expr_extracted_p1_list, expr_extracted_p2_list, _, overlap_genes = prepare_expression_features(
-            [expr_panel1],[fake["adata"]], n_comps=n_gene_comps)
+            [adata_panel1],[fake["adata"]], n_comps=n_gene_comps)
                         
 
             # Step 5: Evaluate with dropout
