@@ -646,7 +646,7 @@ def run_synthetic_evaluation_with_dropout(
                 s_t            = fake,
                 
                 morph_orig     = uni_panel1_normed,
-                morph_t        = uni_panel2_normed,
+                morph_t        = fake["uni"],
                 
                 expr_orig      = adata_panel1,
                 expr_t         = fake["adata"],
@@ -657,7 +657,7 @@ def run_synthetic_evaluation_with_dropout(
                 spatial_key    = spatial_key_p1,
                 
                 threshold      = threshold,
-                extracted      = True,
+                extracted      = False,
                 N_PCA_MORPH    = N_PCA_MORPH,
                 n_gene_comps   = n_gene_comps
             )   
