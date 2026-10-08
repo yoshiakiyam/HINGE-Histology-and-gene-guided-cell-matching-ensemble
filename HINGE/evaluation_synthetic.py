@@ -653,7 +653,7 @@ def run_synthetic_evaluation_with_dropout(
                 
                 dropout_result = dropout_result,
                 
-                morph_orig     = morph_orig,
+                morph_orig     = uni_panel1_normed,
                 morph_t        = fake["uni"],
                 
                 expr_orig      = adata_panel1,

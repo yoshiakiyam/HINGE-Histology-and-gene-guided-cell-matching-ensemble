@@ -2,6 +2,7 @@
 import numpy as np
 from scipy.spatial import cKDTree
 from scipy.optimize import linear_sum_assignment
+import anndata as ad
 
 from HINGE.utils import calculate_nn_dist
 
@@ -333,7 +334,7 @@ def run_hinge(
                                                    max_log2fc=1.0,
                                                    verbose = True)
     
-    weighted_expr_p1, weighted_expr_p2, _, w_expr = build_weighted_expression_features(
+    weighted_expr_p1, weighted_expr_p2, selected_genes, w_expr = build_weighted_expression_features(
         expr_panel1,
         expr_panel2,
         gene_stats,
@@ -348,9 +349,20 @@ def run_hinge(
     morph_p1_extracted_list, morph_pl2_extracted_list, morph_pca = prepare_morphology_features(
         [morph_panel1], [morph_panel2], N_PCA_MORPH=N_PCA_MORPH
     )
+
+    #remake anndata for pca
+    weighted_expr_p1_adata = ad.AnnData(X=weighted_expr_p1)
+    weighted_expr_p1_adata.var_names = selected_genes
+    
+    weighted_expr_p2_adata = ad.AnnData(X=weighted_expr_p2)
+    weighted_expr_p2_adata.var_names = selected_genes
     
     w_expr_extracted_p1_list, w_expr_extracted_p2_list, expr_pca, overlap_genes = prepare_expression_features(
-    [weighted_expr_p1],[weighted_expr_p2], n_comps=n_gene_comps)
+    [weighted_expr_p1_adata],
+    [weighted_expr_p2_adata],
+    n_comps=n_gene_comps
+    )
+    
     
     return  match_combined(
                 morph_p1_extracted_list[0],
@@ -411,7 +423,7 @@ def run_all_strategies(
         print(f"  Core NN dist p99     : {p99:.2f} um")
 
     
-        MAX_DIST = round(p90)
+        MAX_DIST = round(p95)
         print(f"Using MAX DIST: {round(p90)}")
         
         
@@ -526,7 +538,7 @@ def run_all_strategies(
                 morph_panel2,#NOT PCA COMPRESSED
                 expr_panel1,#NOT PCA COMPRESSED
                 expr_panel2,#NOT PCA COMPRESSED
-                MAX_DIST=None,
+                MAX_DIST=MAX_DIST,
                 k_candidates=None,
                 threshold=None,
                 N_PCA_MORPH = N_PCA_MORPH,
