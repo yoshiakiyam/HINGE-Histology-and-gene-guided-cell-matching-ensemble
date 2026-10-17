@@ -381,8 +381,111 @@ def run_hinge(
 ####################################################################################################
 
 
+from HINGE.gene_agreement import compute_gene_agreement_population_2
 
+def run_hinge_2(
+    xy_panel1,
+    xy_panel2_reg,
+    morph_panel1,           # NOT PCA compressed
+    morph_panel2,           # NOT PCA compressed
+    expr_panel1,            # NOT PCA compressed
+    expr_panel2,            # NOT PCA compressed
+    MAX_DIST              = None,
+    k_candidates          = None,
+    threshold             = None,
+    N_PCA_MORPH           = 256,
+    n_gene_comps          = 128,
+    # ── cluster structure parameters (new vs run_hinge) ──
+    leiden_resolution     = 0.5,
+    n_pca_comps_cluster   = 30,
+    n_neighbors_transfer  = 15,
+    min_cells_per_cluster = 20,
+):
+    """
+    HINGE variant that uses cluster-based pseudobulk structure scores
+    for gene selection and weighting instead of population-level cv_score.
 
+    Differences from run_hinge
+    --------------------------
+    compute_gene_agreement_population is called with:
+        use_cluster_structure = True   (new)
+        min_detection_rate    = 0.02   (relaxed from 0.05)
+    This means:
+      • Rare cell type markers with low detection are preserved if their
+        cluster pattern is reproduced in Panel 2.
+      • Genes with technical dropout in one panel receive low structure_score
+        and are naturally down-weighted.
+      • w_expr is derived from structure-aware agreement scores, so it
+        decreases more aggressively when expression is unreliable.
+    Everything else (PCA, feature prep, match_combined) is identical.
+    """
+    if MAX_DIST is None:
+        print("MAX_DIST is calculated automatically")
+        nn_dist = calculate_nn_dist(xy_panel1, xy_panel2_reg)
+        p90 = float(np.percentile(nn_dist, 90))
+        MAX_DIST = round(p90)
+        print(f"Using MAX DIST: {MAX_DIST}")
+
+    overlapping_genes = get_overlapping_genes([expr_panel1], [expr_panel2])
+    print(f"  Overlapping genes across all samples: {len(overlapping_genes)}")
+
+    # ── Key difference: cluster-based gene agreement ──────────────────────────
+    gene_stats = compute_gene_agreement_population_2(
+        expr_panel1,
+        expr_panel2,
+        overlapping_genes,
+        min_detection_rate    = 0.02,       # relaxed: rare markers preserved
+        max_log2fc            = 1.0,
+        use_cluster_structure = True,        # NEW vs run_hinge
+        leiden_resolution     = leiden_resolution,
+        n_pca_comps           = n_pca_comps_cluster,
+        min_cells_per_cluster = min_cells_per_cluster,
+        verbose               = True,
+    )
+
+    weighted_expr_p1, weighted_expr_p2, selected_genes, w_expr = \
+        build_weighted_expression_features(
+            expr_panel1,
+            expr_panel2,
+            gene_stats,
+            min_r          = 0.0,
+            top_n_genes    = None,
+            normalize_expr = False,
+            verbose        = True,
+        )
+
+    # ── Feature preparation (identical to run_hinge) ──────────────────────────
+    morph_p1_extracted_list, morph_p2_extracted_list, morph_pca = \
+        prepare_morphology_features(
+            [morph_panel1], [morph_panel2], N_PCA_MORPH=N_PCA_MORPH
+        )
+
+    weighted_expr_p1_adata = ad.AnnData(X=weighted_expr_p1)
+    weighted_expr_p1_adata.var_names = selected_genes
+
+    weighted_expr_p2_adata = ad.AnnData(X=weighted_expr_p2)
+    weighted_expr_p2_adata.var_names = selected_genes
+
+    w_expr_extracted_p1_list, w_expr_extracted_p2_list, expr_pca, _ = \
+        prepare_expression_features(
+            [weighted_expr_p1_adata],
+            [weighted_expr_p2_adata],
+            n_comps=n_gene_comps,
+        )
+
+    return match_combined(
+        morph_p1_extracted_list[0],
+        morph_p2_extracted_list[0],
+        w_expr_extracted_p1_list[0],
+        w_expr_extracted_p2_list[0],
+        xy_panel1,
+        xy_panel2_reg,
+        max_dist     = MAX_DIST,
+        w1           = 1 - w_expr,
+        w2           = w_expr,
+        k_candidates = k_candidates,
+        threshold    = threshold,
+    )
 
 '''
 Run all matching strategies (distance, histology, expression, combined) and print results.
@@ -401,7 +504,13 @@ def run_all_strategies(
     threshold=None,
     extracted = True,
     N_PCA_MORPH = 256,
-    n_gene_comps = 128
+    n_gene_comps = 128,
+    
+    #parameters for hinge_2──
+    leiden_resolution     = 0.5,
+    n_pca_comps_cluster   = 30,
+    n_neighbors_transfer  = 15,
+    min_cells_per_cluster = 20,
 ):
     print(f"\n  --- {pair_label} ---")
 
@@ -543,7 +652,25 @@ def run_all_strategies(
                 threshold=None,
                 N_PCA_MORPH = N_PCA_MORPH,
                 n_gene_comps = n_gene_comps
-            )
+            ),
+            
+                        # ── F_HINGE2: cluster structure-based gene agreement (new) ────────
+            "F_HINGE2": run_hinge_2(
+                xy_panel1, xy_panel2_reg,
+                morph_panel1, morph_panel2,
+                expr_panel1, expr_panel2,
+                MAX_DIST              = MAX_DIST,
+                k_candidates          = None,
+                threshold             = None,
+                N_PCA_MORPH           = N_PCA_MORPH,
+                n_gene_comps          = n_gene_comps,
+                leiden_resolution     = leiden_resolution,
+                n_pca_comps_cluster   = n_pca_comps_cluster,
+                n_neighbors_transfer  = n_neighbors_transfer,
+                min_cells_per_cluster = min_cells_per_cluster,
+            ),
+            
+            
         }
         
     return result_dict

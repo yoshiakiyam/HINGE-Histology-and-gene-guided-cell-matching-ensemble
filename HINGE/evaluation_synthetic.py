@@ -404,7 +404,13 @@ def evaluate_synthetic_with_dropout(
     threshold=None,
     extracted = True,
     N_PCA_MORPH = 256,
-    n_gene_comps = 128
+    n_gene_comps = 128,
+    
+    
+    leiden_resolution     = 0.5,
+    n_pca_comps_cluster   = 30,
+    n_neighbors_transfer  = 15,
+    min_cells_per_cluster = 20,
 ):
     """
     Evaluate matching strategies on a synthetic pair with cell dropout.
@@ -470,7 +476,12 @@ def evaluate_synthetic_with_dropout(
         threshold=threshold,
         extracted = extracted,
         N_PCA_MORPH = N_PCA_MORPH,
-        n_gene_comps = n_gene_comps
+        n_gene_comps = n_gene_comps,
+        
+        leiden_resolution     = leiden_resolution,
+        n_pca_comps_cluster   = n_pca_comps_cluster,
+        n_neighbors_transfer  = n_neighbors_transfer,
+        min_cells_per_cluster = min_cells_per_cluster,
     )
 
     results = {}
@@ -572,7 +583,15 @@ def run_synthetic_evaluation_with_dropout(
 
     threshold=None,
     
-    evaluate_hinge = False
+    evaluate_hinge = False,
+    
+    
+    
+    # parameters for F_HINGE2 ──────────────────────
+    leiden_resolution     = 0.5,
+    n_pca_comps_cluster   = 30,
+    n_neighbors_transfer  = 15,
+    min_cells_per_cluster = 20,
 ):
     """
     Synthetic evaluation with cell dropout.
@@ -622,7 +641,7 @@ def run_synthetic_evaluation_with_dropout(
     
     
     if evaluate_hinge:
-        strategies.append('E_HINGE')
+        strategies += ["E_HINGE", "F_HINGE2"]   # both added together
         
     records    = []
 
@@ -646,16 +665,14 @@ def run_synthetic_evaluation_with_dropout(
         )
         
         if evaluate_hinge:
-            
+            # Pass raw features; run_all_strategies extracts internally,
+            # and calls both run_hinge and run_hinge_2
             eval_results = evaluate_synthetic_with_dropout(
                 s_orig         = adata_panel1,
                 fake           = fake,
-                
                 dropout_result = dropout_result,
-                
                 morph_orig     = uni_panel1_normed,
                 morph_t        = fake["uni"],
-                
                 expr_orig      = adata_panel1,
                 expr_t         = fake["adata"],
                 MAX_DIST       = MAX_DIST,
@@ -663,11 +680,17 @@ def run_synthetic_evaluation_with_dropout(
                 pair_label     = f"{SAMPLE_NAME} α={alpha:.2f} rep={rep+1}",
                 spatial_key    = spatial_key_p1,
                 threshold      = threshold,
-                extracted      = False,
-                N_PCA_MORPH    = N_PCA_MORPH, #no need to set this parameter since feature has been extracted
-                n_gene_comps   =  n_gene_comps, #no need to set this parameter since feature has been extracted
+                extracted      = False,          # triggers run_hinge + run_hinge_2
+                N_PCA_MORPH    = N_PCA_MORPH,
+                n_gene_comps   = n_gene_comps,
+                # ── cluster params forwarded to run_hinge_2 ──────────────────
+                leiden_resolution     = leiden_resolution,
+                n_pca_comps_cluster   = n_pca_comps_cluster,
+                n_neighbors_transfer  = n_neighbors_transfer,
+                min_cells_per_cluster = min_cells_per_cluster,
             )
-        
+            
+            
         elif evaluate_hinge is False:
             # Step 4: Prepare features
             morph_list_orig, morph_list_fake, _ = prepare_morphology_features(

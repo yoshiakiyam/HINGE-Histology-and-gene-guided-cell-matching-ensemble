@@ -1,0 +1,15 @@
+automatic_alignment.py - contains script on aligning the two panels, in case the samples are not aligned
+
+evaluation_synthetic.py - script for evaluation through creating synthetic data
+
+evaluation.py - script for evaluatoin through neighborhood consistency
+
+feature_mapping.py - script for compressing features
+
+gene_agreement.py - script for evaluating overlapping genes, which genes to use
+
+matching_with_global_assignment.py - contains matching algorithms
+
+synthetic_data_whole.py - script for creating synthetic data
+
+utils.py - helper functions
