@@ -22,7 +22,7 @@ def compute_gene_agreement_population(
     overlap_genes,
     min_detection_rate = 0.05,
     max_log2fc         = 1.0,
-    verbose            = True,
+    verbose            = False,
 ):
     """
     Compute cross-panel gene agreement using POPULATION-LEVEL statistics.

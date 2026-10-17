@@ -20,15 +20,16 @@ import scanpy as sc
     Returns two lists of L2-normalized arrays aligned to `pairs`.
 """
 def prepare_morphology_features(uni_panel1_list, uni_panel2_list,
-                                  N_PCA_MORPH=100):
+                                  N_PCA_MORPH=100, verbose = False):
 
-    print("=" * 55)
-    print("  Preparing morphology features (UNI embeddings)")
-    print("=" * 55)
+    if verbose:
+        print("=" * 55)
+        print("  Preparing morphology features (UNI embeddings)")
+        print("=" * 55)
 
-    # Fit PCA on all samples combined
-    print("combining UNI features from both panels...")
+        print("combining UNI features from both panels...")
     all_X = []
+    # Fit PCA on all samples combined
     for adata in uni_panel1_list + uni_panel2_list:
         X = adata.X.toarray() if issparse(adata.X) else np.array(adata.X)
         all_X.append(X.astype(np.float32))
@@ -39,11 +40,13 @@ def prepare_morphology_features(uni_panel1_list, uni_panel2_list,
     n_comps_actual = min(N_PCA_MORPH, all_X.shape[1] - 1) #get the number of components, either N_PCA_MORPH or the number of features - 1, whichever is smaller
     
     # Fit PCA on all samples combined
-    print(f"  Fitting PCA on {all_X.shape} UNI features "
-          f"→ {n_comps_actual} components...")
+    if verbose:
+        print(f"  Fitting PCA on {all_X.shape} UNI features "
+              f"→ {n_comps_actual} components...")
     pca = PCA(n_components=n_comps_actual, random_state=42)
     pca.fit(all_X)
-    print(f"  Variance retained: {pca.explained_variance_ratio_.sum():.1%}")
+    if verbose:
+        print(f"  Variance retained: {pca.explained_variance_ratio_.sum():.1%}")
     del all_X
 
     morph_panel1_list = []
@@ -62,7 +65,8 @@ def prepare_morphology_features(uni_panel1_list, uni_panel2_list,
 
         morph_panel1_list.append(m_panel1)
         morph_panel2_list.append(m_panel2)
-        print( f"panel 1 morph {m_panel1.shape}, panel 2 morph {m_panel2.shape}")
+        if verbose:
+            print( f"panel 1 morph {m_panel1.shape}, panel 2 morph {m_panel2.shape}")
 
     return morph_panel1_list, morph_panel2_list, pca
 
@@ -76,13 +80,19 @@ def get_normalized_X(adata, genes):
     
 
 from HINGE.utils import get_overlapping_genes
-def prepare_expression_features(rna_panel1, rna_panel2, n_comps=50, normalize_expr = False):
-
-    print("\n" + "=" * 55)
-    print("  Preparing expression features (overlapping genes PCA)")
-    print("=" * 55)
+def prepare_expression_features(rna_panel1, rna_panel2, n_comps=50, normalize_expr = False, verbose = False):
+    
+    
+    
     overlap_genes = get_overlapping_genes(rna_panel1, rna_panel2)
-    print(f"  Overlapping genes across all samples: {len(overlap_genes)}")
+    
+    
+    if verbose:
+        print("\n" + "=" * 55)
+        print("  Preparing expression features (overlapping genes PCA)")
+        print("=" * 55)
+    
+        print(f"  Overlapping genes across all samples: {len(overlap_genes)}")
 
     
 
@@ -104,8 +114,11 @@ def prepare_expression_features(rna_panel1, rna_panel2, n_comps=50, normalize_ex
         ])
     # Fit PCA on all of panel 1 samples combined
     n_comps_actual = min(n_comps, len(overlap_genes) - 1)
-    print(f"  Fitting expression PCA on {X_panel1_all.shape} "
-          f"→ {n_comps_actual} components...")
+    
+    if verbose:
+    
+        print(f"  Fitting expression PCA on {X_panel1_all.shape} "
+            f"→ {n_comps_actual} components...")
     pca = PCA(n_components=n_comps_actual, random_state=42)
     pca.fit(X_panel1_all)
     print(f"  Variance retained: {pca.explained_variance_ratio_.sum():.1%}")
@@ -136,7 +149,8 @@ def prepare_expression_features(rna_panel1, rna_panel2, n_comps=50, normalize_ex
         expr_panel1_list.append(e_panel1)
         expr_panel2_list.append(e_panel2)
 
-        print(f"Panel 1 expr {e_panel1.shape}, Panel 2 expr {e_panel1.shape}")
+        if verbose:
+            print(f"Panel 1 expr {e_panel1.shape}, Panel 2 expr {e_panel1.shape}")
 
 
     return expr_panel1_list, expr_panel2_list, pca, overlap_genes
