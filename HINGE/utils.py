@@ -184,9 +184,11 @@ def compute_population_diff_stats(
 
 
 
-def get_overlapping_genes(rna_panel1:list, rna_panel2:list ):
-    print("panel1 shape:", rna_panel1[0].shape)
-    print("panel2 shape:", rna_panel2[0].shape)
+def get_overlapping_genes(rna_panel1:list, rna_panel2:list, verbose = False ):
+    
+    if verbose:
+        print("panel1 shape:", rna_panel1[0].shape)
+        print("panel2 shape:", rna_panel2[0].shape)
     
     overlap_genes = set(rna_panel1[0].var_names)
     for sample in rna_panel1[1:] + rna_panel2:

@@ -414,6 +414,8 @@ def evaluate_synthetic_with_dropout(
     n_pca_comps_cluster   = 30,
     n_neighbors_transfer  = 15,
     min_cells_per_cluster = 20,
+    
+    verbose = False
 ):
     """
     Evaluate matching strategies on a synthetic pair with cell dropout.
@@ -490,9 +492,10 @@ def evaluate_synthetic_with_dropout(
     results = {}
     n_eval = len(eval_idx)
 
-    print(f"\n  {'Strategy':<20} {'Matched':>8} {'Eval_matched':>13} "
-          f"{'Correct':>8} {'Acc_match':>10} {'Acc_eval':>10} {'Cov_eval':>10}")
-    print(f"  {'-' * 83}")
+    if verbose:
+        print(f"\n  {'Strategy':<20} {'Matched':>8} {'Eval_matched':>13} "
+            f"{'Correct':>8} {'Acc_match':>10} {'Acc_eval':>10} {'Cov_eval':>10}")
+        print(f"  {'-' * 83}")
 
     for strategy, (idx_p1_keep, idx_p2_keep) in match_results.items():
 
@@ -505,8 +508,9 @@ def evaluate_synthetic_with_dropout(
                 "n_eval_matched"   : 0,
                 "n_correct"        : 0,
             }
-            print(f"  {strategy:<20} {0:>8} {0:>13} {0:>8} "
-                  f"{0:>10.3f} {0:>10.3f} {0:>10.3f}")
+            if verbose:
+                print(f"  {strategy:<20} {0:>8} {0:>13} {0:>8} "
+                      f"{0:>10.3f} {0:>10.3f} {0:>10.3f}")
             continue
 
         # idx_p1_keep: positions within s1_keep
@@ -547,13 +551,14 @@ def evaluate_synthetic_with_dropout(
             "n_query"          : n_query,
         }
 
-        print(f"  {strategy:<20} "
-              f"{len(idx_p1_keep):>8} "
-              f"{n_eval_matched:>13} "
-              f"{correct:>8} "
-              f"{accuracy_matched:>10.3f} "
-              f"{accuracy_eval:>10.3f} "
-              f"{coverage_eval:>10.3f}")
+        if verbose:
+            print(f"  {strategy:<20} "
+                  f"{len(idx_p1_keep):>8} "
+                  f"{n_eval_matched:>13} "
+                  f"{correct:>8} "
+                  f"{accuracy_matched:>10.3f} "
+                  f"{accuracy_eval:>10.3f} "
+                  f"{coverage_eval:>10.3f}")
 
     return results
 
