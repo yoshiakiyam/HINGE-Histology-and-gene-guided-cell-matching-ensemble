@@ -66,7 +66,9 @@ def compute_gene_agreement_population(
             agreement_score  : composite [0,1]
             use_for_matching : bool
     """
-
+    if verbose:
+        print('Running compute_gene_agreement_population()  ', "="*50)
+    
     X_p1 = _expr_matrix(adata_panel1, overlap_genes)   # (n1, n_genes)
     X_p2 = _expr_matrix(adata_panel2, overlap_genes)   # (n2, n_genes)
 
@@ -400,22 +402,30 @@ def compute_cluster_structure_score(
     G = len(overlap_genes)# number of overlapping genes
 
 
+    # ── Step 1: Cluster Panel 1 on OVERLAPPING GENES ONLY ────────────────────
+    # Build a minimal AnnData containing only the overlapping genes.
+    # normalize_total is applied to this reduced matrix so that
+    # per-gene counts are on the same scale as Panel 2.
+    adata_p1_sub = sc.AnnData(
+        X        = X_p1_overlap.copy().astype(np.float32),
+        obs      = adata_panel1.obs.copy(),
+    )
+    adata_p1_sub.var_names = list(overlap_genes)
 
+    sc.pp.normalize_total(adata_p1_sub, target_sum=1e4)
+    sc.pp.log1p(adata_p1_sub)
 
-    # ── Step 1: Cluster Panel 1 on its FULL gene set ─────────────────────────
+    # No HVG selection — we only have 444 genes, use all of them
+    n_comps_safe = min(n_pca_comps, G - 1, adata_p1_sub.n_obs - 1)
+    sc.pp.pca(adata_p1_sub, n_comps=n_comps_safe)
+    sc.pp.neighbors(adata_p1_sub, n_pcs=n_comps_safe)
+    sc.tl.leiden(adata_p1_sub, resolution=leiden_resolution,
+                 key_added='cluster')
 
-    adata_p1 = adata_panel1.copy()
-    sc.pp.normalize_total(adata_p1, target_sum=1e4)
-    sc.pp.log1p(adata_p1)
-    sc.pp.highly_variable_genes(adata_p1, n_top_genes=2000, flavor='seurat_v3')
-    n_comps_safe = min(n_pca_comps, adata_p1.n_vars - 1, adata_p1.n_obs - 1)
-    sc.pp.pca(adata_p1, n_comps=n_comps_safe, use_highly_variable=True)
-    sc.pp.neighbors(adata_p1, n_pcs=n_comps_safe)
-    sc.tl.leiden(adata_p1, resolution=leiden_resolution, key_added='cluster',flavor="igraph",n_iterations=2,directed=False,)
-
-    labels_p1 = adata_p1.obs['cluster'].values.astype(str)
+    labels_p1       = adata_p1_sub.obs['cluster'].values.astype(str)
     unique_clusters = np.unique(labels_p1)
-    K = len(unique_clusters) # number of clusters in panel 1
+    K               = len(unique_clusters)
+
 
     if verbose:
         sizes = pd.Series(labels_p1).value_counts()
@@ -590,6 +600,9 @@ def compute_gene_agreement_population_2(
             structure_score  : Pearson r from pseudobulk comparison [0, 1]
             cluster_labels   : stored as metadata (not a column)
     """
+    if verbose:
+        print('Running compute_gene_agreement_population_2()  ', "="*50)
+    
     X_p1 = _expr_matrix(adata_panel1, overlap_genes)
     X_p2 = _expr_matrix(adata_panel2, overlap_genes)
 
