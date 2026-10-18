@@ -640,7 +640,7 @@ def compute_gene_agreement_population_2(
             print(f"  Computing cluster-level structure scores")
             print(f"=======================================================")
 
-        structure_s, cluster_labels = compute_cluster_structure_score(
+        structure_s, labels_p1, labels_p2 = compute_cluster_structure_score(
             adata_panel1          = adata_panel1,
             adata_panel2          = adata_panel2,
             overlap_genes         = overlap_genes,
@@ -650,6 +650,9 @@ def compute_gene_agreement_population_2(
             verbose               = verbose,
         )
         df['structure_score'] = structure_s.values
+
+        df.attrs['labels_p1'] = len(np.unique(labels_p1))
+        df.attrs['labels_p2'] = len(np.unique(labels_p2))
 
         # Optional hard filter
         if min_structure_score > 0.0:
@@ -698,6 +701,5 @@ def compute_gene_agreement_population_2(
         ]
         print(top10.to_string())
 
-    # Attach cluster labels as metadata for external diagnostics
-    df.attrs['cluster_labels'] = cluster_labels
+
     return df

@@ -241,6 +241,7 @@ def match_combined(
     w2=0.5,
     k_candidates=None, # num of candidate matches to consider for global assignment
     threshold=None, # minimum similarity score for a match to be considered
+    verbose = False
 ):
     #calculate combined score for two features using weights w1 and w2
     def combined_score(i, j):
@@ -270,13 +271,13 @@ def match_combined(
         xy_panel2_reg[matched_p2],
         axis=1,
     )
-
-    print(
-        f"  [D combined   ] {len(matched_p1):>6} pairs "
-        f"({len(matched_p1)/len(xy_panel1):.1%}), "
-        f"median dist = {np.median(matched_dist):.2f}, "
-        f"median sim = {np.median(matched_sc):.3f}"
-    )
+    if verbose:
+        print(
+            f"  [D combined   ] {len(matched_p1):>6} pairs "
+            f"({len(matched_p1)/len(xy_panel1):.1%}), "
+            f"median dist = {np.median(matched_dist):.2f}, "
+            f"median sim = {np.median(matched_sc):.3f}"
+        )
 
     return matched_p1, matched_p2
 
@@ -299,11 +300,12 @@ def run_hinge(
     k_candidates=None,
     threshold=None,
     N_PCA_MORPH = 256,
-    n_gene_comps = 128
+    n_gene_comps = 128,
+    verbose = False
 ):
     if MAX_DIST is None:
         #automatically set distance
-        print("MAX_DIST is calculated automatically")
+        
         
         nn_dist = calculate_nn_dist(xy_panel1, xy_panel2_reg)
 
@@ -312,21 +314,26 @@ def run_hinge(
         p90  = float(np.percentile(nn_dist, 90))
         p95  = float(np.percentile(nn_dist, 95))
         p99  = float(np.percentile(nn_dist, 99))
-    
-        print(f"  Core NN dist p50     : {p50:.2f} um")
-        print(f"  Core NN dist p75     : {p75:.2f} um")
-        print(f"  Core NN dist p90     : {p90:.2f} um")
-        print(f"  Core NN dist p95     : {p95:.2f} um")
-        print(f"  Core NN dist p99     : {p99:.2f} um")
+
+        if verbose:
+            print("MAX_DIST is calculated automatically")
+            print(f"  Core NN dist p50     : {p50:.2f} um")
+            print(f"  Core NN dist p75     : {p75:.2f} um")
+            print(f"  Core NN dist p90     : {p90:.2f} um")
+            print(f"  Core NN dist p95     : {p95:.2f} um")
+            print(f"  Core NN dist p99     : {p99:.2f} um")
+            
+            print(f"Using MAX DIST: {round(p90)}")
 
     
         MAX_DIST = round(p90)
-        print(f"Using MAX DIST: {round(p90)}")
+        
         
         
     
     overlapping_genes = get_overlapping_genes([expr_panel1], [expr_panel2])
-    print(f"  Overlapping genes across all samples: {len(overlapping_genes)}")
+    if verbose:
+        print(f"  Overlapping genes across all samples: {len(overlapping_genes)}")
     
     
     gene_stats = compute_gene_agreement_population(expr_panel1, expr_panel2, overlapping_genes,
@@ -400,6 +407,7 @@ def run_hinge_2(
     n_pca_comps_cluster   = 30,
     n_neighbors_transfer  = 15,
     min_cells_per_cluster = 20,
+    verbose = False
 ):
     """
     HINGE variant that uses cluster-based pseudobulk structure scores
@@ -420,14 +428,18 @@ def run_hinge_2(
     Everything else (PCA, feature prep, match_combined) is identical.
     """
     if MAX_DIST is None:
-        print("MAX_DIST is calculated automatically")
+
         nn_dist = calculate_nn_dist(xy_panel1, xy_panel2_reg)
         p90 = float(np.percentile(nn_dist, 90))
         MAX_DIST = round(p90)
-        print(f"Using MAX DIST: {MAX_DIST}")
+        if verbose:
+            print("MAX_DIST is calculated automatically")
+            print(f"Using MAX DIST: {MAX_DIST}")
 
     overlapping_genes = get_overlapping_genes([expr_panel1], [expr_panel2])
-    print(f"  Overlapping genes across all samples: {len(overlapping_genes)}")
+
+    if verbose:
+        print(f"  Overlapping genes across all samples: {len(overlapping_genes)}")
 
     # ── Key difference: cluster-based gene agreement ──────────────────────────
     gene_stats = compute_gene_agreement_population_2(
@@ -511,11 +523,12 @@ def run_all_strategies(
     n_pca_comps_cluster   = 30,
     n_neighbors_transfer  = 15,
     min_cells_per_cluster = 20,
+    verbose = False
 ):
     print(f"\n  --- {pair_label} ---")
 
     if MAX_DIST is None:
-        print("MAX_DIST is calculated automatically")
+        
         
         nn_dist = calculate_nn_dist(xy_panel1, xy_panel2_reg)
 
@@ -524,16 +537,19 @@ def run_all_strategies(
         p90  = float(np.percentile(nn_dist, 90))
         p95  = float(np.percentile(nn_dist, 95))
         p99  = float(np.percentile(nn_dist, 99))
-    
-        print(f"  Core NN dist p50     : {p50:.2f} um")
-        print(f"  Core NN dist p75     : {p75:.2f} um")
-        print(f"  Core NN dist p90     : {p90:.2f} um")
-        print(f"  Core NN dist p95     : {p95:.2f} um")
-        print(f"  Core NN dist p99     : {p99:.2f} um")
+
+        if verbose:
+            print("MAX_DIST is calculated automatically")
+            print(f"  Core NN dist p50     : {p50:.2f} um")
+            print(f"  Core NN dist p75     : {p75:.2f} um")
+            print(f"  Core NN dist p90     : {p90:.2f} um")
+            print(f"  Core NN dist p95     : {p95:.2f} um")
+            print(f"  Core NN dist p99     : {p99:.2f} um")
+            print(f"Using MAX DIST: {round(p90)}")
 
     
         MAX_DIST = round(p95)
-        print(f"Using MAX DIST: {round(p90)}")
+
         
         
         

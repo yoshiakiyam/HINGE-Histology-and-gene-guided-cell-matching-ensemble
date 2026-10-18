@@ -38,7 +38,8 @@ def evaluate_synthetic(
     threshold=None,
     extracted = True,
     N_PCA_MORPH = 256,
-    n_gene_comps = 128
+    n_gene_comps = 128,
+    verbose = False
 ):
     """
     Match s_orig to fake section s_t. Accuracy is the fraction of matched
@@ -68,9 +69,10 @@ def evaluate_synthetic(
     )
 
     results = {}
-    print(f"\n  {'Strategy':<20} {'Matched':>8} {'Correct':>8} "
-          f"{'Acc_match':>10} {'Acc_all':>10} {'Coverage':>10}")
-    print(f"  {'-' * 70}")
+    if verbose:
+        print(f"\n  {'Strategy':<20} {'Matched':>8} {'Correct':>8} "
+              f"{'Acc_match':>10} {'Acc_all':>10} {'Coverage':>10}")
+        print(f"  {'-' * 70}")
 
     for strategy, (idx_p1, idx_p2) in match_results.items():
         
@@ -107,10 +109,11 @@ def evaluate_synthetic(
             "idx_p1": idx_p1,
             "idx_p2": idx_p2,
         }
-        print(
-            f"  {strategy:<20} {len(idx_p1):>8} {correct:>8} "
-            f"{accuracy:>10.3f} {accuracy_all:>10.3f} {coverage:>10.3f}"
-        )
+        if verbose:
+            print(
+                f"  {strategy:<20} {len(idx_p1):>8} {correct:>8} "
+                f"{accuracy:>10.3f} {accuracy_all:>10.3f} {coverage:>10.3f}"
+            )
 
     return results
 
