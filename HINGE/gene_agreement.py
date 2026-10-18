@@ -234,8 +234,7 @@ def build_weighted_expression_features(
     #calculate feature weight based on the quality of the expression
     # Map to [0, 0.5]: saturates at 0.5 when quality_signal ≥ 0.25
     #w_expr = float(np.clip( 0.5 * quality_signal, 0.0, 0.5))
-
-    w_expr = float(np.clip( 0.1 * quality_signal, 0.0, 0.5))
+    w_expr = float(np.clip( 0.3 * quality_signal, 0.0, 0.5))
     w_morph = 1.0 - w_expr
 
     if verbose:
