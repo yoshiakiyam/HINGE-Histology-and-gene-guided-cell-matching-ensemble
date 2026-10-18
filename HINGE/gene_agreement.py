@@ -233,7 +233,9 @@ def build_weighted_expression_features(
 
     #calculate feature weight based on the quality of the expression
     # Map to [0, 0.5]: saturates at 0.5 when quality_signal ≥ 0.25
-    w_expr = float(np.clip( 0.5 * quality_signal, 0.0, 0.5))
+    #w_expr = float(np.clip( 0.5 * quality_signal, 0.0, 0.5))
+
+    w_expr = float(np.clip( 0.1 * quality_signal, 0.0, 0.5))
     w_morph = 1.0 - w_expr
 
     if verbose:
@@ -752,7 +754,7 @@ def compute_gene_agreement_population_2(
         print(f"\n    Agreement score (passing genes):")
         print(f"      median : {passing.median():.3f}")
         print(f"      mean   : {passing.mean():.3f}")
-        print(f"      top 10 genes:")s
+        print(f"      top 10 genes:")
         top10 = df.nlargest(10, 'agreement_score')[
             ['mean_p1', 'mean_p2', 'log2fc',
              'detection_p1', 'detection_p2',
