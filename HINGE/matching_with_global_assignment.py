@@ -131,6 +131,7 @@ def match_distance_only(
     xy_panel2_reg,
     max_dist,
     k_candidates=None,
+    verbose = False,
 ):
 
 
@@ -160,11 +161,12 @@ def match_distance_only(
         axis=1,
     )
 
-    print(
-        f"  [A distance   ] {len(matched_p1):>6} pairs "
-        f"({len(matched_p1)/len(xy_panel1):.1%}), "
-        f"median dist = {np.median(matched_dist):.2f}"
-    )
+    if verbose:
+        print(
+            f"  [A distance   ] {len(matched_p1):>6} pairs "
+            f"({len(matched_p1)/len(xy_panel1):.1%}), "
+            f"median dist = {np.median(matched_dist):.2f}"
+        )
     
     
     

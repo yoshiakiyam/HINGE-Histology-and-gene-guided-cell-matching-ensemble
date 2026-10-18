@@ -372,6 +372,9 @@ def compute_cluster_structure_score(
     min_cells_per_cluster = 20,
     min_valid_clusters    = 3,
     verbose               = True,
+    imbalance_penalty = True,   
+    max_imbalance     = 0.20
+                                
 ):
     """
     Cluster Panel 1 independently → transfer labels to Panel 2 via KNN
@@ -511,24 +514,65 @@ def compute_cluster_structure_score(
 
 
 
+    # ── Compute per-cluster imbalance weights ─────────────────────────────
+    frac_p1 = n_cells_p1[valid] / n_cells_p1[valid].sum()
+    frac_p2 = n_cells_p2[valid] / n_cells_p2[valid].sum()
+    imbalance = np.abs(frac_p1 - frac_p2)   # (n_valid,)
 
-    # ── Step 4: Per-gene Pearson r ────────────────────────────────────────────
+    if imbalance_penalty:
+        # Weight = 1 if imbalance ≤ threshold, decays to 0 at 2× threshold
+        # A cluster with 20% P1 but 40% P2 → imbalance=0.20 → weight=1.0
+        # A cluster with 10% P1 but 40% P2 → imbalance=0.30 → weight=0.33
+        cluster_weights = np.clip(
+            1.0 - (imbalance - max_imbalance) / max_imbalance,
+            0.0, 1.0
+        )
+        if verbose:
+            print(f"\n    Cluster imbalance weights:")
+            for k_idx, k in enumerate(unique_clusters[valid]):
+                print(f"      Cluster {k:<4}: "
+                      f"P1={frac_p1[k_idx]:.3f}  "
+                      f"P2={frac_p2[k_idx]:.3f}  "
+                      f"imbalance={imbalance[k_idx]:.3f}  "
+                      f"weight={cluster_weights[k_idx]:.3f}")
+    else:
+        cluster_weights = np.ones(n_valid)
+
+    # ── Per-gene weighted Pearson r ───────────────────────────────────────
     structure_scores = np.zeros(G)
 
     for g in range(G):
         v1 = pb_p1_v[:, g]
         v2 = pb_p2_v[:, g]
 
-        # Flat in Panel 1 → gene has no discriminative pattern → skip
-        # Flat in Panel 2 → gene not reliably measured there → skip
         if v1.std() < 1e-8 or v2.std() < 1e-8:
             structure_scores[g] = 0.0
             continue
 
-        r, _ = pearsonr(v1, v2)
+        # Weighted Pearson r
+        w      = cluster_weights
+        w_sum  = w.sum()
+        if w_sum < 1e-8:
+            structure_scores[g] = 0.0
+            continue
+
+        m1 = (w * v1).sum() / w_sum
+        m2 = (w * v2).sum() / w_sum
+        cov  = (w * (v1 - m1) * (v2 - m2)).sum() / w_sum
+        std1 = np.sqrt((w * (v1 - m1)**2).sum() / w_sum)
+        std2 = np.sqrt((w * (v2 - m2)**2).sum() / w_sum)
+
+        if std1 < 1e-8 or std2 < 1e-8:
+            structure_scores[g] = 0.0
+            continue
+
+        r = cov / (std1 * std2)
         structure_scores[g] = float(np.clip(
             0.0 if np.isnan(r) else r, 0.0, 1.0
         ))
+
+
+
 
     if verbose:
         informative = structure_scores > 0
@@ -556,7 +600,7 @@ def compute_gene_agreement_population_2(
     leiden_resolution     = 0.5,
     n_pca_comps           = 30,
     min_cells_per_cluster = 20,
-    min_structure_score   = 0.0,    # hard filter: drop genes below this r
+    min_structure_score   = 0.3,    # hard filter: drop genes below this r
     verbose               = True,
 ):
     """
@@ -708,7 +752,7 @@ def compute_gene_agreement_population_2(
         print(f"\n    Agreement score (passing genes):")
         print(f"      median : {passing.median():.3f}")
         print(f"      mean   : {passing.mean():.3f}")
-        print(f"      top 10 genes:")
+        print(f"      top 10 genes:")s
         top10 = df.nlargest(10, 'agreement_score')[
             ['mean_p1', 'mean_p2', 'log2fc',
              'detection_p1', 'detection_p2',
