@@ -188,6 +188,7 @@ def match_feature_only(
     k_candidates=None,
     label="feature",
     threshold=None,
+    verbose = False
 ):
 
     
@@ -217,12 +218,13 @@ def match_feature_only(
         axis=1,
     )
 
-    print(
-        f"  [{label:13s}] {len(matched_p1):>6} pairs "
-        f"({len(matched_p1)/len(xy_panel1):.1%}), "
-        f"median dist = {np.median(matched_dist):.2f}, "
-        f"median sim = {np.median(matched_sc):.3f}"
-    )
+    if verbose:
+        print(
+            f"  [{label:13s}] {len(matched_p1):>6} pairs "
+            f"({len(matched_p1)/len(xy_panel1):.1%}), "
+            f"median dist = {np.median(matched_dist):.2f}, "
+            f"median sim = {np.median(matched_sc):.3f}"
+        )
 
     return matched_p1, matched_p2
 
@@ -341,7 +343,7 @@ def run_hinge(
     gene_stats = compute_gene_agreement_population(expr_panel1, expr_panel2, overlapping_genes,
                                                    min_detection_rate=0.05,
                                                    max_log2fc=1.0,
-                                                   verbose = True)
+                                                   verbose = verbose)
     
     weighted_expr_p1, weighted_expr_p2, selected_genes, w_expr = build_weighted_expression_features(
         expr_panel1,
@@ -350,7 +352,7 @@ def run_hinge(
         min_r          = 0.0,      # min agreement_score to include in the gene to use
         top_n_genes    = None,
         normalize_expr = False,
-        verbose        = True,
+        verbose        = verbose,
     )
     
     
@@ -454,7 +456,7 @@ def run_hinge_2(
         leiden_resolution     = leiden_resolution,
         n_pca_comps           = n_pca_comps_cluster,
         min_cells_per_cluster = min_cells_per_cluster,
-        verbose               = True,
+        verbose               = verbose,
     )
 
     weighted_expr_p1, weighted_expr_p2, selected_genes, w_expr = \
@@ -465,7 +467,7 @@ def run_hinge_2(
             min_r          = 0.0,
             top_n_genes    = None,
             normalize_expr = False,
-            verbose        = True,
+            verbose        = verbose,
         )
 
     # ── Feature preparation (identical to run_hinge) ──────────────────────────

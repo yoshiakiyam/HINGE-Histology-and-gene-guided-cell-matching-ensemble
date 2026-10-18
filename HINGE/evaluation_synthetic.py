@@ -468,8 +468,6 @@ def apply_dropout(
         'n_s1t_keep'   : len(s1t_keep_idx),
         'n_eval'       : len(eval_idx),
     }
-
-
 def evaluate_synthetic_with_dropout(
     s_orig,
     fake,
@@ -478,83 +476,38 @@ def evaluate_synthetic_with_dropout(
     morph_t,
     expr_orig,
     expr_t,
-    MAX_DIST     = None,
-    k_candidates = 20,
-    pair_label="",
-    spatial_key="spatial",
-    threshold=None,
-    extracted = True,
-    N_PCA_MORPH = 256,
-    n_gene_comps = 128,
-    
-    
+    MAX_DIST              = None,
+    k_candidates          = 20,
+    pair_label            = "",
+    spatial_key           = "spatial",
+    threshold             = None,
+    extracted             = True,
+    N_PCA_MORPH           = 256,
+    n_gene_comps          = 128,
     leiden_resolution     = 0.5,
     n_pca_comps_cluster   = 30,
     n_neighbors_transfer  = 15,
     min_cells_per_cluster = 20,
-    verbose = False,
-    
-    #evaluate celltype
-    
-    evaluate_celltype = False,
-    celltypes_p1      = None,
-    
-    
-
+    verbose               = False,
+    evaluate_celltype     = False,
+    celltypes_p1          = None,
 ):
-    """
-    Evaluate matching strategies on a synthetic pair with cell dropout.
-
-    How dropout affects matching and evaluation:
-    ─────────────────────────────────────────────
-    Matching runs on:
-        Source (s1):    s1_keep_idx cells only    ← dropped s1 cells hidden
-        Target (s1_t):  s1t_keep_idx cells only   ← dropped s1t cells hidden
-
-    Accuracy evaluated on:
-        eval_idx only  ← s1 cells whose true match still exists in s1_t
-        (cells in s1_keep but not eval_idx have their match missing →
-         they will match to wrong cells → excluded from accuracy)
-
-    This means the algorithm:
-        Can find correct matches for eval_idx cells
-        Cannot find correct match for (s1_keep - eval_idx) cells
-           → these are correctly excluded from accuracy computation
-
-    Accuracy metrics:
-        accuracy_matched : correct / n_matched_among_eval_idx
-        accuracy_eval    : correct / len(eval_idx)
-        coverage_eval    : n_matched_among_eval_idx / len(eval_idx)
-    """
-    # ── Slice to surviving cells ───────────────────────────────────
     s1_keep_idx  = dropout_result['s1_keep_idx']
     s1t_keep_idx = dropout_result['s1t_keep_idx']
-    eval_idx     = dropout_result['eval_idx']   # original indices, subset of s1_keep
+    eval_idx     = dropout_result['eval_idx']
 
+    xy_orig_full       = _xy(s_orig, spatial_key)
+    xy_orig_dropped    = xy_orig_full[s1_keep_idx]
+    xy_t_full          = fake['xy']
+    xy_t_dropped       = xy_t_full[s1t_keep_idx]
+    morph_orig_dropped = morph_orig[s1_keep_idx]
+    morph_t_dropped    = morph_t[s1t_keep_idx]
+    expr_orig_dropped  = expr_orig[s1_keep_idx]
+    expr_t_dropped     = expr_t[s1t_keep_idx]
+    n_query            = len(xy_orig_dropped)
 
-    # Coordinates
-    xy_orig_full = _xy(s_orig, spatial_key)
-    xy_orig_dropped      = xy_orig_full[s1_keep_idx]     # (n_s1_keep, 2)
-
-
-
-    xy_t_full    = fake['xy']
-    xy_t_dropped         = xy_t_full[s1t_keep_idx]       # (n_s1t_keep, 2)
-
-    # Features — slice to kept cells
-    morph_orig_dropped   = morph_orig[s1_keep_idx]               # (n_s1_keep, d)
-    morph_t_dropped   = morph_t[s1t_keep_idx]                 # (n_s1t_keep, d)
-
-    expr_orig_dropped   = expr_orig[s1_keep_idx]                # (n_s1_keep, d_expr)
-    expr_t_dropped   = expr_t[s1t_keep_idx]                  # (n_s1t_keep, d_expr)
-
-    n_query = len(xy_orig_dropped)
-
-    # ── Run matching ───────────────────────────────────────────────
-    # Matching sees: s1_keep cells vs s1t_keep cells
-    # It does NOT know which cells were dropped
     match_results = run_all_strategies(
-        xy_panel1    = xy_orig_dropped,
+        xy_panel1     = xy_orig_dropped,
         xy_panel2_reg = xy_t_dropped,
         morph_panel1  = morph_orig_dropped,
         morph_panel2  = morph_t_dropped,
@@ -563,26 +516,27 @@ def evaluate_synthetic_with_dropout(
         MAX_DIST      = MAX_DIST,
         k_candidates  = k_candidates,
         pair_label    = pair_label,
-        threshold=threshold,
-        extracted = extracted,
-        N_PCA_MORPH = N_PCA_MORPH,
-        n_gene_comps = n_gene_comps,
-        
+        threshold     = threshold,
+        extracted     = extracted,
+        N_PCA_MORPH   = N_PCA_MORPH,
+        n_gene_comps  = n_gene_comps,
         leiden_resolution     = leiden_resolution,
         n_pca_comps_cluster   = n_pca_comps_cluster,
         n_neighbors_transfer  = n_neighbors_transfer,
         min_cells_per_cluster = min_cells_per_cluster,
     )
 
-    results = {}
-    n_eval = len(eval_idx)
+    results   = {}
+    n_eval    = len(eval_idx)
+    truth_map = {int(i): int(i) for i in eval_idx}
 
     print(f"\n  {'Strategy':<20} {'Matched':>8} {'Eval_matched':>13} "
-            f"{'Correct':>8} {'Acc_match':>10} {'Acc_eval':>10} {'Cov_eval':>10}")
+          f"{'Correct':>8} {'Acc_match':>10} {'Acc_eval':>10} {'Cov_eval':>10}")
     print(f"  {'-' * 83}")
-    truth_map = {int(i): int(i) for i in eval_idx}
+
     for strategy, (idx_p1_keep, idx_p2_keep) in match_results.items():
 
+        # ── zero-match early exit ─────────────────────────────────────────────
         if len(idx_p1_keep) == 0:
             results[strategy] = {
                 "accuracy_matched" : 0.0,
@@ -591,39 +545,34 @@ def evaluate_synthetic_with_dropout(
                 "n_matched"        : 0,
                 "n_eval_matched"   : 0,
                 "n_correct"        : 0,
+                "n_eval"           : n_eval,
+                "n_query"          : n_query,
+                "eval_matched_p1"  : np.array([], dtype=int),  # ← FIXED
+                "eval_matched_p2"  : np.array([], dtype=int),  # ← FIXED
             }
-            if verbose:
-                print(f"  {strategy:<20} {0:>8} {0:>13} {0:>8} "
-                      f"{0:>10.3f} {0:>10.3f} {0:>10.3f}")
+            print(f"  {strategy:<20} {0:>8} {0:>13} {0:>8} "
+                  f"{0:>10.3f} {0:>10.3f} {0:>10.3f}")
             continue
 
-        # idx_p1_keep: positions within s1_keep
-        # idx_p2_keep: positions within s1t_keep
-        # Convert idx_p2_keep → original indices in fake['xy']
-        original_p1_idx  = s1_keep_idx[idx_p1_keep]   # original s1 indices
-        original_p2_idx  = s1t_keep_idx[idx_p2_keep]  # original s1t indices
+        original_p1_idx = s1_keep_idx[idx_p1_keep]
+        original_p2_idx = s1t_keep_idx[idx_p2_keep]
+        match_map       = dict(zip(original_p1_idx.tolist(),
+                                   original_p2_idx.tolist()))
 
-        # Build lookup: original_s1_idx → matched_original_s1t_idx
-        match_map = dict(zip(original_p1_idx.tolist(),
-                             original_p2_idx.tolist()))
-
-        # ── Evaluate ONLY on eval_idx ──────────────────────────────
-        # eval_idx: original s1 cells whose true match exists in s1_t
-        # ground truth: cell i maps to cell i (identity)
         eval_matched_mask = np.array([i in match_map for i in eval_idx],
-                                      dtype=bool)
+                                     dtype=bool)
         eval_matched_p1   = eval_idx[eval_matched_mask]
         eval_matched_p2   = np.array([match_map[i]
-                                       for i in eval_matched_p1.tolist()])
+                                      for i in eval_matched_p1.tolist()])
 
-        n_eval_matched = eval_matched_mask.sum()
-        correct        = (eval_matched_p2 == eval_matched_p1).sum()
-
+        n_eval_matched   = eval_matched_mask.sum()
+        correct          = (eval_matched_p2 == eval_matched_p1).sum()
         accuracy_matched = float(correct / n_eval_matched) \
                            if n_eval_matched > 0 else 0.0
         accuracy_eval    = float(correct / n_eval)
         coverage_eval    = float(n_eval_matched / n_eval)
 
+        # ── normal match result — includes p1/p2 arrays ──────────────────────
         results[strategy] = {
             "accuracy_matched" : accuracy_matched,
             "accuracy_eval"    : accuracy_eval,
@@ -633,24 +582,26 @@ def evaluate_synthetic_with_dropout(
             "n_correct"        : int(correct),
             "n_eval"           : n_eval,
             "n_query"          : n_query,
+            "eval_matched_p1"  : eval_matched_p1,  # ← FIXED
+            "eval_matched_p2"  : eval_matched_p2,  # ← FIXED
         }
 
         print(f"  {strategy:<20} "
-                  f"{len(idx_p1_keep):>8} "
-                  f"{n_eval_matched:>13} "
-                  f"{correct:>8} "
-                  f"{accuracy_matched:>10.3f} "
-                  f"{accuracy_eval:>10.3f} "
-                  f"{coverage_eval:>10.3f}")
+              f"{len(idx_p1_keep):>8} "
+              f"{n_eval_matched:>13} "
+              f"{correct:>8} "
+              f"{accuracy_matched:>10.3f} "
+              f"{accuracy_eval:>10.3f} "
+              f"{coverage_eval:>10.3f}")
 
+    # ── Cell-type evaluation ──────────────────────────────────────────────────
     celltype_results = {}
 
     if evaluate_celltype and celltypes_p1 is not None:
         celltypes_p1_arr = np.asarray(celltypes_p1)
-        # fake panel2 has the same cell types (same cells, perturbed coords)
-        celltypes_p2_arr = celltypes_p1_arr
+        celltypes_p2_arr = celltypes_p1_arr  # fake panel2 = same identities
 
-        print(f"\n  {'Strategy':<20} {'Cell type evaluation':}")
+        print(f"\n  {'Strategy':<20} {'Cell type evaluation'}")
         print(f"  {'-' * 60}")
 
         for strategy, res in results.items():
@@ -684,17 +635,56 @@ def evaluate_synthetic_with_dropout(
                 "confusion" : confusion_df,
             }
 
-            # Brief summary per strategy
+            # ── Per-cell-type accuracy table ──────────────────────────────────
             if len(per_type_df) > 0:
-                mean_acc  = per_type_df["matching_accuracy"].mean()
+                # Sort by matching_accuracy ascending so worst types appear first
+                per_type_sorted = (
+                    per_type_df.sort_values("matching_accuracy", ascending=True)
+                    .reset_index(drop=True)
+                )
+            
+                mean_acc = per_type_df["matching_accuracy"].mean()
                 mean_cons = per_type_df["type_consistency"].mean()
-                print(f"  {strategy:<20} "
-                      f"mean match acc={mean_acc:.3f}  "
-                      f"mean type consistency={mean_cons:.3f}")
+            
+                # Column widths
+                ct_width = max(per_type_df["cell_type"].str.len().max(), 12)
+            
+                print(
+                    f"\n[{strategy}] "
+                    f"mean match acc={mean_acc:.3f} "
+                    f"mean type consistency={mean_cons:.3f}"
+                )
+                print(
+                    f"  {'Cell Type':<{ct_width}} "
+                    f"{'N':>7} "
+                    f"{'Match Acc':>10} "
+                    f"{'Type Consist':>13}"
+                )
+                print(f"  {'-' * (ct_width + 37)}")
+            
+                for _, row in per_type_sorted.iterrows():
+                    # Flag cell types significantly below the mean
+                    flag = " ⚠️" if row["matching_accuracy"] < mean_acc - 0.05 else ""
+            
+                    print(
+                        f"  {row['cell_type']:<{ct_width}} "
+                        f"{int(row['n_matched']):>7} "
+                        f"{row['matching_accuracy']:>10.3f} "
+                        f"{row['type_consistency']:>13.3f}"
+                        f"{flag}"
+                    )
+            
+                print(f"  {'─' * (ct_width + 37)}")
+                print(
+                    f"  {'MEAN':<{ct_width}} "
+                    f"{'':>7} "
+                    f"{mean_acc:>10.3f} "
+                    f"{mean_cons:>13.3f}"
+                )
+            
+
 
     return results, celltype_results
-
-
 
    
    

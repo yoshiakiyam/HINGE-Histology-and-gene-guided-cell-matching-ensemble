@@ -121,7 +121,8 @@ def prepare_expression_features(rna_panel1, rna_panel2, n_comps=50, normalize_ex
             f"→ {n_comps_actual} components...")
     pca = PCA(n_components=n_comps_actual, random_state=42)
     pca.fit(X_panel1_all)
-    print(f"  Variance retained: {pca.explained_variance_ratio_.sum():.1%}")
+    if verbose:
+        print(f"  Variance retained: {pca.explained_variance_ratio_.sum():.1%}")
     del X_panel1_all
 
     expr_panel1_list = []
