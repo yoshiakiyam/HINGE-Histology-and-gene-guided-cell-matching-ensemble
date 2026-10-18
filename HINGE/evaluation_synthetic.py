@@ -16,6 +16,84 @@ from HINGE.feature_mapping import prepare_morphology_features
 
 
 
+###################################################################################################
+#cell type evaluation
+
+
+def compute_celltype_matching_metrics(
+   matched_p1,
+   matched_p2,
+   truth_map,
+   celltypes_p1,
+   celltypes_p2,
+):
+   """
+   Parameters
+   ----------
+   matched_p1 : array
+       Matched indices in panel1
+   matched_p2 : array
+       Matched indices in panel2
+   truth_map : dict
+       ground-truth mapping:
+           source_idx -> true_target_idx
+   celltypes_p1 : array-like
+       Cell types for panel1
+   celltypes_p2 : array-like
+       Cell types for panel2
+   Returns
+   -------
+   pd.DataFrame
+   """
+   records = []
+   unique_types = np.unique(celltypes_p1)
+   for ct in unique_types:
+       mask = celltypes_p1[matched_p1] == ct
+       if mask.sum() == 0:
+           continue
+       p1_ct = matched_p1[mask]
+       p2_ct = matched_p2[mask]
+       correct_match = 0
+       correct_type = 0
+       for i, j in zip(p1_ct, p2_ct):
+           true_j = truth_map.get(i, None)
+           if true_j is not None and j == true_j:
+               correct_match += 1
+           if celltypes_p2[j] == ct:
+               correct_type += 1
+       records.append({
+           "cell_type": ct,
+           "n_matched": len(p1_ct),
+           "matching_accuracy":
+               correct_match / len(p1_ct),
+           "type_consistency":
+               correct_type / len(p1_ct),
+       })
+   return pd.DataFrame(records)
+
+
+
+from sklearn.metrics import confusion_matrix
+def build_celltype_confusion(
+   matched_p1,
+   matched_p2,
+   celltypes_p1,
+   celltypes_p2,
+):
+   true_types = celltypes_p1[matched_p1]
+   pred_types = celltypes_p2[matched_p2]
+   cm = confusion_matrix(
+       true_types,
+       pred_types,
+       labels=np.unique(celltypes_p1)
+   )
+   return pd.DataFrame(
+       cm,
+       index=np.unique(celltypes_p1),
+       columns=np.unique(celltypes_p1)
+   )
+   
+
 
 
 
@@ -413,7 +491,16 @@ def evaluate_synthetic_with_dropout(
     leiden_resolution     = 0.5,
     n_pca_comps_cluster   = 30,
     n_neighbors_transfer  = 15,
-    min_cells_per_cluster = 20
+    min_cells_per_cluster = 20,
+    verbose = False,
+    
+    #evaluate celltype
+    
+    evaluate_celltype = False,
+    celltypes_p1      = None,
+    
+    
+
 ):
     """
     Evaluate matching strategies on a synthetic pair with cell dropout.
@@ -493,7 +580,7 @@ def evaluate_synthetic_with_dropout(
     print(f"\n  {'Strategy':<20} {'Matched':>8} {'Eval_matched':>13} "
             f"{'Correct':>8} {'Acc_match':>10} {'Acc_eval':>10} {'Cov_eval':>10}")
     print(f"  {'-' * 83}")
-
+    truth_map = {int(i): int(i) for i in eval_idx}
     for strategy, (idx_p1_keep, idx_p2_keep) in match_results.items():
 
         if len(idx_p1_keep) == 0:
@@ -556,7 +643,66 @@ def evaluate_synthetic_with_dropout(
                   f"{accuracy_eval:>10.3f} "
                   f"{coverage_eval:>10.3f}")
 
-    return results
+    celltype_results = {}
+
+    if evaluate_celltype and celltypes_p1 is not None:
+        celltypes_p1_arr = np.asarray(celltypes_p1)
+        # fake panel2 has the same cell types (same cells, perturbed coords)
+        celltypes_p2_arr = celltypes_p1_arr
+
+        print(f"\n  {'Strategy':<20} {'Cell type evaluation':}")
+        print(f"  {'-' * 60}")
+
+        for strategy, res in results.items():
+            emp1 = res["eval_matched_p1"]
+            emp2 = res["eval_matched_p2"]
+
+            if len(emp1) == 0:
+                celltype_results[strategy] = {
+                    "per_type"  : pd.DataFrame(),
+                    "confusion" : pd.DataFrame(),
+                }
+                continue
+
+            per_type_df = compute_celltype_matching_metrics(
+                matched_p1   = emp1,
+                matched_p2   = emp2,
+                truth_map    = truth_map,
+                celltypes_p1 = celltypes_p1_arr,
+                celltypes_p2 = celltypes_p2_arr,
+            )
+
+            confusion_df = build_celltype_confusion(
+                matched_p1   = emp1,
+                matched_p2   = emp2,
+                celltypes_p1 = celltypes_p1_arr,
+                celltypes_p2 = celltypes_p2_arr,
+            )
+
+            celltype_results[strategy] = {
+                "per_type"  : per_type_df,
+                "confusion" : confusion_df,
+            }
+
+            # Brief summary per strategy
+            if len(per_type_df) > 0:
+                mean_acc  = per_type_df["matching_accuracy"].mean()
+                mean_cons = per_type_df["type_consistency"].mean()
+                print(f"  {strategy:<20} "
+                      f"mean match acc={mean_acc:.3f}  "
+                      f"mean type consistency={mean_cons:.3f}")
+
+    return results, celltype_results
+
+
+
+   
+   
+   
+   
+###################################################################################################
+
+#running evaluation
 
 from HINGE.utils import get_overlapping_genes
 def run_synthetic_evaluation_with_dropout(
@@ -596,6 +742,10 @@ def run_synthetic_evaluation_with_dropout(
     n_pca_comps_cluster   = 30,
     n_neighbors_transfer  = 15,
     min_cells_per_cluster = 20,
+    
+    #parameter for celltype evaluation
+    evaluate_celltype = False,
+    celltype_key      = "cell_type",   # adata_panel1.obs column name
 ):
     """
     Synthetic evaluation with cell dropout.
@@ -640,6 +790,21 @@ def run_synthetic_evaluation_with_dropout(
         xy_local_noise_weight = xy_local_noise_weight,
         overlap_genes         = overlap_genes,
     )
+    
+    
+    # ── Extract cell types once ───────────────────────────────────────────────
+    celltypes_p1 = None
+    if evaluate_celltype:
+        if celltype_key not in adata_panel1.obs.columns:
+            print(f"  ⚠️  celltype_key='{celltype_key}' not found in "
+                  f"adata_panel1.obs — cell type evaluation disabled.")
+            evaluate_celltype = False
+        else:
+            celltypes_p1 = np.asarray(adata_panel1.obs[celltype_key].values)
+            unique_types  = np.unique(celltypes_p1)
+            print(f"  Cell types found: {len(unique_types)}  "
+                  f"({', '.join(unique_types[:5].tolist())}"
+                  f"{'...' if len(unique_types) > 5 else ''})")
 
     strategies = ["A_distance", "B_histology", "C_expression", "D_combined"]
     
@@ -647,8 +812,8 @@ def run_synthetic_evaluation_with_dropout(
     if evaluate_hinge:
         strategies += ["E_HINGE", "F_HINGE2"]   # both added together
         
-    records    = []
-
+    records          = []    # accuracy records (one row per strategy/replicate)
+    celltype_records = []    # cell-type records (one row per strategy/replicate/cell_type)
     for fake in fakes:
         #exoects morph and expr features to be feature extracted
         rep   = fake['replicate']
@@ -668,67 +833,56 @@ def run_synthetic_evaluation_with_dropout(
             random_seed   = rep * 777 + 42,  # different seed per replicate
         )
         
+        # ── Common kwargs for evaluate_synthetic_with_dropout ─────────────────
+        eval_kwargs = dict(
+            s_orig            = adata_panel1,
+            fake              = fake,
+            dropout_result    = dropout_result,
+            MAX_DIST          = MAX_DIST,
+            k_candidates      = k_candidates,
+            pair_label        = f"{SAMPLE_NAME} α={alpha:.2f} rep={rep+1}",
+            spatial_key       = spatial_key_p1,
+            threshold         = threshold,
+            evaluate_celltype = evaluate_celltype,
+            celltypes_p1      = celltypes_p1,
+        )
+
         if evaluate_hinge:
-            # Pass raw features; run_all_strategies extracts internally,
-            # and calls both run_hinge and run_hinge_2
-            eval_results = evaluate_synthetic_with_dropout(
-                s_orig         = adata_panel1,
-                fake           = fake,
-                dropout_result = dropout_result,
-                morph_orig     = uni_panel1_normed,
-                morph_t        = fake["uni"],
-                expr_orig      = adata_panel1,
-                expr_t         = fake["adata"],
-                MAX_DIST       = MAX_DIST,
-                k_candidates   = k_candidates,
-                pair_label     = f"{SAMPLE_NAME} α={alpha:.2f} rep={rep+1}",
-                spatial_key    = spatial_key_p1,
-                threshold      = threshold,
-                extracted      = False,          # triggers run_hinge + run_hinge_2
-                N_PCA_MORPH    = N_PCA_MORPH,
-                n_gene_comps   = n_gene_comps,
-                # ── cluster params forwarded to run_hinge_2 ──────────────────
+            eval_results, ct_results = evaluate_synthetic_with_dropout(
+                **eval_kwargs,
+                morph_orig  = uni_panel1_normed,
+                morph_t     = fake["uni"],
+                expr_orig   = adata_panel1,
+                expr_t      = fake["adata"],
+                extracted   = False,
+                N_PCA_MORPH = N_PCA_MORPH,
+                n_gene_comps          = n_gene_comps,
                 leiden_resolution     = leiden_resolution,
                 n_pca_comps_cluster   = n_pca_comps_cluster,
                 n_neighbors_transfer  = n_neighbors_transfer,
                 min_cells_per_cluster = min_cells_per_cluster,
             )
-            
-            
-        elif evaluate_hinge is False:
-            # Step 4: Prepare features
+
+        else:
             morph_list_orig, morph_list_fake, _ = prepare_morphology_features(
                 [uni_panel1_normed], [fake["uni"]], N_PCA_MORPH=N_PCA_MORPH
             )
-            morph_orig = morph_list_orig[0]   # (n_full, d)
-            morph_t    = morph_list_fake[0]   # (n_full, d)
+            expr_extracted_p1_list, expr_extracted_p2_list, _, overlap_genes = \
+                prepare_expression_features(
+                    [adata_panel1], [fake["adata"]], n_comps=n_gene_comps
+                )
 
-            
-            
-            expr_extracted_p1_list, expr_extracted_p2_list, _, overlap_genes = prepare_expression_features(
-            [adata_panel1],[fake["adata"]], n_comps=n_gene_comps)
-                        
-
-            # Step 5: Evaluate with dropout
-            eval_results = evaluate_synthetic_with_dropout(
-                s_orig         = adata_panel1,
-                fake           = fake,
-                dropout_result = dropout_result,
-                morph_orig     = morph_orig,
-                morph_t        = morph_t,
-                expr_orig      = expr_extracted_p1_list[0],
-                expr_t         = expr_extracted_p2_list[0],
-                MAX_DIST       = MAX_DIST,
-                k_candidates   = k_candidates,
-                pair_label     = f"{SAMPLE_NAME} α={alpha:.2f} rep={rep+1}",
-                spatial_key    = spatial_key_p1,
-                threshold      = threshold,
-                extracted      = True,
-                N_PCA_MORPH    = None, #no need to set this parameter since feature has been extracted
-                n_gene_comps   =  None, #no need to set this parameter since feature has been extracted
+            eval_results, ct_results = evaluate_synthetic_with_dropout(
+                **eval_kwargs,
+                morph_orig   = morph_list_orig[0],
+                morph_t      = morph_list_fake[0],
+                expr_orig    = expr_extracted_p1_list[0],
+                expr_t       = expr_extracted_p2_list[0],
+                extracted    = True,
+                N_PCA_MORPH  = None,
+                n_gene_comps = None,
             )
-            
-
+       # ── Collect accuracy records ──────────────────────────────────────────
         for strategy in strategies:
             rec = eval_results[strategy]
             records.append({
@@ -746,5 +900,31 @@ def run_synthetic_evaluation_with_dropout(
                 "n_correct"        : rec["n_correct"],
                 "n_eval"           : rec["n_eval"],
             })
+            
+        # ── Collect cell-type records ─────────────────────────────────────────
+        if evaluate_celltype:
+            for strategy in strategies:
+                ct = ct_results.get(strategy, {})
+                per_type_df = ct.get("per_type", pd.DataFrame())
+                if len(per_type_df) == 0:
+                    continue
+                for _, row in per_type_df.iterrows():
+                    celltype_records.append({
+                        "sample"            : SAMPLE_NAME,
+                        "alpha"             : alpha,
+                        "replicate"         : rep + 1,
+                        "strategy"          : strategy,
+                        "dropout_mode"      : dropout_mode,
+                        "cell_type"         : row["cell_type"],
+                        "n_matched"         : row["n_matched"],
+                        "matching_accuracy" : row["matching_accuracy"],
+                        "type_consistency"  : row["type_consistency"],
+                    })
 
-    return pd.DataFrame(records), fakes, stats
+    df_accuracy  = pd.DataFrame(records)
+    df_celltype  = pd.DataFrame(celltype_records) \
+                   if celltype_records else pd.DataFrame()
+
+    return df_accuracy, df_celltype, fakes, stats
+
+
