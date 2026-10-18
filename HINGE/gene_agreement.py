@@ -10,8 +10,10 @@ import scanpy as sc
 from HINGE.utils import _expr_matrix, _get_X
 
 
+import warnings
 
-
+warnings.simplefilter("ignore", UserWarning)
+warnings.simplefilter("ignore", FutureWarning)
 
 
 
@@ -210,7 +212,7 @@ def build_weighted_expression_features(
     n_total        = len(gene_stats)
 
     if n_selected == 0:
-        print("  ⚠️  No genes passed selection → expression weight = 0.0")
+        print("No genes passed selection → expression weight = 0.0")
         return (np.zeros((len(adata_panel1), 1)),
                 np.zeros((len(adata_panel2), 1)),
                 [], 0.0)
@@ -409,7 +411,7 @@ def compute_cluster_structure_score(
     n_comps_safe = min(n_pca_comps, adata_p1.n_vars - 1, adata_p1.n_obs - 1)
     sc.pp.pca(adata_p1, n_comps=n_comps_safe, use_highly_variable=True)
     sc.pp.neighbors(adata_p1, n_pcs=n_comps_safe)
-    sc.tl.leiden(adata_p1, resolution=leiden_resolution, key_added='cluster')
+    sc.tl.leiden(adata_p1, resolution=leiden_resolution, key_added='cluster',flavor="igraph",n_iterations=2,directed=False,)
 
     labels_p1 = adata_p1.obs['cluster'].values.astype(str)
     unique_clusters = np.unique(labels_p1)

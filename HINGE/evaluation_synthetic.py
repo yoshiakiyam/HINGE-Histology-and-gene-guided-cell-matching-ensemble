@@ -413,9 +413,7 @@ def evaluate_synthetic_with_dropout(
     leiden_resolution     = 0.5,
     n_pca_comps_cluster   = 30,
     n_neighbors_transfer  = 15,
-    min_cells_per_cluster = 20,
-    
-    verbose = False
+    min_cells_per_cluster = 20
 ):
     """
     Evaluate matching strategies on a synthetic pair with cell dropout.
@@ -492,10 +490,9 @@ def evaluate_synthetic_with_dropout(
     results = {}
     n_eval = len(eval_idx)
 
-    if verbose:
-        print(f"\n  {'Strategy':<20} {'Matched':>8} {'Eval_matched':>13} "
+    print(f"\n  {'Strategy':<20} {'Matched':>8} {'Eval_matched':>13} "
             f"{'Correct':>8} {'Acc_match':>10} {'Acc_eval':>10} {'Cov_eval':>10}")
-        print(f"  {'-' * 83}")
+    print(f"  {'-' * 83}")
 
     for strategy, (idx_p1_keep, idx_p2_keep) in match_results.items():
 
@@ -551,8 +548,7 @@ def evaluate_synthetic_with_dropout(
             "n_query"          : n_query,
         }
 
-        if verbose:
-            print(f"  {strategy:<20} "
+        print(f"  {strategy:<20} "
                   f"{len(idx_p1_keep):>8} "
                   f"{n_eval_matched:>13} "
                   f"{correct:>8} "
