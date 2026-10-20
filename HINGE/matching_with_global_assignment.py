@@ -649,6 +649,7 @@ def run_all_strategies(
     verbose = False,
     
     #parameters for hinge_2──
+    run_hinge2 = False,
     leiden_resolution     = 0.5,
     n_pca_comps_cluster   = 30,
     n_neighbors_transfer  = 15,
@@ -657,10 +658,11 @@ def run_all_strategies(
     
     
     # ── graph smoothing for G_HINGE3 ─────
-    k_spatial      = 15,
+    run_hinge3 = False,
+    k_spatial      = 6,
     n_smooth_iters = 1,
-    self_weight    = 0.5,
-    max_radius     = None,
+    self_weight    = 0.8,
+    #max_radius     = None,
 ):
     print(f"\n  --- {pair_label} ---")
 
@@ -806,9 +808,12 @@ def run_all_strategies(
                 N_PCA_MORPH = N_PCA_MORPH,
                 n_gene_comps = n_gene_comps
             ),
+
+        }
+        if run_hinge2:
             
                         # ── F_HINGE2: cluster structure-based gene agreement (new) ────────
-            "F_HINGE2": run_hinge_2(
+            result_dict["F_HINGE2"]= run_hinge_2(
                 xy_panel1, xy_panel2_reg,
                 morph_panel1, morph_panel2,
                 expr_panel1, expr_panel2,
@@ -822,8 +827,9 @@ def run_all_strategies(
                 n_neighbors_transfer  = n_neighbors_transfer,
                 min_cells_per_cluster = min_cells_per_cluster,
             ),
-            
-            "G_HINGE3": run_hinge_3(
+
+        if run_hinge3:
+             result_dict["F_HINGE3"]= run_hinge_3(
             xy_panel1, xy_panel2_reg,
             morph_panel1, morph_panel2,
             expr_panel1, expr_panel2,
@@ -835,11 +841,11 @@ def run_all_strategies(
             k_spatial      = k_spatial,
             n_smooth_iters = n_smooth_iters,
             self_weight    = self_weight,
-            max_radius     = max_radius,
+            max_radius     = float(np.percentile(nn_dist, 25)),
         ),
             
             
-        }
+        
         
     return result_dict
     

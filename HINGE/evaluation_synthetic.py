@@ -736,6 +736,11 @@ def run_synthetic_evaluation_with_dropout(
     #parameter for celltype evaluation
     evaluate_celltype = False,
     celltype_key      = "cell_type",   # adata_panel1.obs column name
+
+
+    run_hinge2 = False,
+
+    run_hinge3 = False,
 ):
     """
     Synthetic evaluation with cell dropout.
@@ -800,7 +805,7 @@ def run_synthetic_evaluation_with_dropout(
     
     
     if evaluate_hinge:
-        strategies += ["E_HINGE", "F_HINGE2"]   # both added together
+        strategies += ["E_HINGE"] #, "F_HINGE2",  "G_HINGE3"]   # both added together
         
     records          = []    # accuracy records (one row per strategy/replicate)
     celltype_records = []    # cell-type records (one row per strategy/replicate/cell_type)
