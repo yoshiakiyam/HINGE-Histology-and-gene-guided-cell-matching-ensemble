@@ -503,6 +503,130 @@ def run_hinge_2(
         threshold    = threshold,
     )
 
+##################################################################################
+from HINGE.morphology_graph import prepare_morphology_features_graph
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  run_hinge_3
+# ─────────────────────────────────────────────────────────────────────────────
+
+def run_hinge_3(
+    xy_panel1,
+    xy_panel2_reg,
+    morph_panel1,           # NOT PCA compressed
+    morph_panel2,           # NOT PCA compressed
+    expr_panel1,            # NOT PCA compressed
+    expr_panel2,            # NOT PCA compressed
+    MAX_DIST       = None,
+    k_candidates   = None,
+    threshold      = None,
+    N_PCA_MORPH    = 512,
+    n_gene_comps   = 512,
+    # ── graph smoothing parameters ───────────────────────────────────────────
+    k_spatial      = 15,    # spatial neighbours per cell
+    n_smooth_iters = 1,     # convolution iterations
+    self_weight    = 0.5,   # own feature weight (1-self_weight = neighbour weight)
+    max_radius     = None,  # µm; None = use all k_spatial regardless of dist
+    verbose        = False,
+):
+    """
+    HINGE with spatial graph-smoothed morphology features.
+
+    Only difference from E_HINGE
+    ------------------------------
+    prepare_morphology_features  →  prepare_morphology_features_graph
+
+    The graph is built independently on each panel's own spatial coordinates
+    (no spatial correspondence assumed).  Each cell's feature becomes a
+    weighted mixture of its own PCA feature and the mean of its k_spatial
+    nearest spatial neighbours, repeated n_smooth_iters times.
+
+    Recommended parameter starting points
+    ---------------------------------------
+    k_spatial=15, n_smooth_iters=1, self_weight=0.5
+        Conservative: single-hop neighbourhood, equal weighting.
+        Best for heterogeneous tissue (sharp boundaries between regions).
+
+    k_spatial=20, n_smooth_iters=2, self_weight=0.5
+        Aggressive: two-hop neighbourhood, wider context.
+        Best for spatially structured tissue (tumour nests, follicles).
+
+    k_spatial=15, n_smooth_iters=1, self_weight=0.7
+        Individual-dominant: less context, closer to E_HINGE.
+        Good baseline to isolate neighbourhood contribution.
+    """
+    if MAX_DIST is None:
+        nn_dist  = calculate_nn_dist(xy_panel1, xy_panel2_reg)
+        MAX_DIST = round(float(np.percentile(nn_dist, 90)))
+        if verbose:
+            print(f"  MAX_DIST auto: {MAX_DIST} µm")
+
+    overlapping_genes = get_overlapping_genes([expr_panel1], [expr_panel2])
+    if verbose:
+        print(f"  Overlapping genes: {len(overlapping_genes)}")
+
+    # ── Expression features (identical to E_HINGE) ────────────────────────────
+    gene_stats = compute_gene_agreement_population(
+        expr_panel1, expr_panel2, overlapping_genes,
+        min_detection_rate = 0.05,
+        max_log2fc         = 1.0,
+        verbose            = True,
+    )
+
+    weighted_expr_p1, weighted_expr_p2, selected_genes, w_expr = \
+        build_weighted_expression_features(
+            expr_panel1, expr_panel2, gene_stats,
+            verbose=True,
+        )
+
+    # ── Graph-smoothed morphology features (NEW) ──────────────────────────────
+    morph_p1_list, morph_p2_list, _ = prepare_morphology_features_graph(
+        [morph_panel1], [morph_panel2],
+        [xy_panel1],    [xy_panel2_reg],
+        N_PCA_MORPH    = N_PCA_MORPH,
+        k_neighbors    = k_spatial,
+        n_iterations   = n_smooth_iters,
+        self_weight    = self_weight,
+        max_radius     = max_radius,
+        verbose        = verbose,
+    )
+
+    # ── Expression PCA (identical to E_HINGE) ─────────────────────────────────
+    weighted_expr_p1_adata = ad.AnnData(X=weighted_expr_p1)
+    weighted_expr_p1_adata.var_names = selected_genes
+
+    weighted_expr_p2_adata = ad.AnnData(X=weighted_expr_p2)
+    weighted_expr_p2_adata.var_names = selected_genes
+
+    w_expr_p1_list, w_expr_p2_list, _, _ = prepare_expression_features(
+        [weighted_expr_p1_adata],
+        [weighted_expr_p2_adata],
+        n_comps=n_gene_comps,
+    )
+
+    return match_combined(
+        morph_p1_list[0],
+        morph_p2_list[0],
+        w_expr_p1_list[0],
+        w_expr_p2_list[0],
+        xy_panel1,
+        xy_panel2_reg,
+        max_dist     = MAX_DIST,
+        w1           = 1 - w_expr,
+        w2           = w_expr,
+        k_candidates = k_candidates,
+        threshold    = threshold,
+    )
+
+
+
+
+
+
+
+
+
 '''
 Run all matching strategies (distance, histology, expression, combined) and print results.
 
@@ -522,12 +646,21 @@ def run_all_strategies(
     N_PCA_MORPH = 256,
     n_gene_comps = 128,
     
+    verbose = False,
+    
     #parameters for hinge_2──
     leiden_resolution     = 0.5,
     n_pca_comps_cluster   = 30,
     n_neighbors_transfer  = 15,
     min_cells_per_cluster = 20,
-    verbose = False
+
+    
+    
+    # ── graph smoothing for G_HINGE3 ─────
+    k_spatial      = 15,
+    n_smooth_iters = 1,
+    self_weight    = 0.5,
+    max_radius     = None,
 ):
     print(f"\n  --- {pair_label} ---")
 
@@ -689,6 +822,21 @@ def run_all_strategies(
                 n_neighbors_transfer  = n_neighbors_transfer,
                 min_cells_per_cluster = min_cells_per_cluster,
             ),
+            
+            "G_HINGE3": run_hinge_3(
+            xy_panel1, xy_panel2_reg,
+            morph_panel1, morph_panel2,
+            expr_panel1, expr_panel2,
+            MAX_DIST       = MAX_DIST,
+            k_candidates   = None,
+            threshold      = None,
+            N_PCA_MORPH    = N_PCA_MORPH,
+            n_gene_comps   = n_gene_comps,
+            k_spatial      = k_spatial,
+            n_smooth_iters = n_smooth_iters,
+            self_weight    = self_weight,
+            max_radius     = max_radius,
+        ),
             
             
         }
