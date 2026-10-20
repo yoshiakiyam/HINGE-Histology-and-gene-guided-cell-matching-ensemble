@@ -622,9 +622,231 @@ def run_hinge_3(
 
 
 
+####################################################################################################
+# hinge 4
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Modified _global_assignment with cluster-aware soft penalty
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _global_assignment_cluster_aware(
+    xy_panel1,
+    xy_panel2_reg,
+    score_fn,
+    max_dist          = 50.0,
+    threshold         = None,
+    k_candidates      = None,
+    # ── new parameters ────────────────────────────────────────────────────────
+    cluster_labels_p1 = None,   # (n1,) int — cluster per Panel 1 cell
+    cluster_labels_p2 = None,   # (n2,) int — cluster per Panel 2 cell
+    cross_cluster_penalty = 0.3, # subtract this from score for cross-cluster pairs
+                                 # 0.0 = no penalty (identical to original)
+                                 # 0.3 = moderate discouragement
+                                 # 1.0 = near-hard constraint
+):
+    """
+    Maximum-weight one-to-one matching with optional cluster-aware soft penalty.
+
+    For cross-cluster pairs:
+        score = score_fn(i, j) - cross_cluster_penalty
+
+    Because scores are cosine similarities in [−1, 1], a penalty of 0.3
+    means a cross-cluster pair needs to be 0.3 more similar than a
+    same-cluster pair to be selected. This is a strong but not absolute
+    discouragement.
+
+    Setting cross_cluster_penalty=0.0 makes this identical to
+    _global_assignment.
+    """
+    n1 = len(xy_panel1)
+    n2 = len(xy_panel2_reg)
+
+    if n1 == 0 or n2 == 0:
+        return (
+            np.array([], dtype=int),
+            np.array([], dtype=int),
+            np.array([], dtype=float),
+        )
+
+    tree = cKDTree(xy_panel2_reg)
+
+    if k_candidates is None:
+        candidate_lists = tree.query_ball_point(xy_panel1, r=max_dist)
+    else:
+        k = min(k_candidates, n2)
+        dist, idx = tree.query(xy_panel1, k=k,
+                               distance_upper_bound=max_dist)
+        if k == 1:
+            dist = dist[:, None]
+            idx  = idx[:, None]
+        candidate_lists = [
+            idx[i][idx[i] < n2].tolist() for i in range(n1)
+        ]
+
+    scores = np.full((n1, n2 + n1), -1e12, dtype=float)
+    scores[:, n2:] = 0.0   # dummy unmatched columns
+
+    use_cluster = (
+        cluster_labels_p1 is not None and
+        cluster_labels_p2 is not None and
+        cross_cluster_penalty > 0.0
+    )
+
+    for i, candidates in enumerate(candidate_lists):
+        for j in candidates:
+            score = float(score_fn(i, j))
+
+            if threshold is not None and score < threshold:
+                continue
+
+            # ── Soft cluster penalty ──────────────────────────────────────────
+            if use_cluster and cluster_labels_p1[i] != cluster_labels_p2[j]:
+                score -= cross_cluster_penalty
+
+            scores[i, j] = score
+
+    row_ind, col_ind = linear_sum_assignment(scores, maximize=True)
+
+    real           = col_ind < n2
+    matched_panel1 = row_ind[real]
+    matched_panel2 = col_ind[real]
+    matched_scores = scores[matched_panel1, matched_panel2]
+    valid          = matched_scores > -1e11
+
+    return matched_panel1[valid], matched_panel2[valid], matched_scores[valid]
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  run_hinge_4
+# ─────────────────────────────────────────────────────────────────────────────
 
 
+from HINGE.morphology_cluster import compute_morph_cluster_labels
+def run_hinge_4(
+    xy_panel1,
+    xy_panel2_reg,
+    morph_panel1,               # NOT PCA compressed (raw UNI AnnData)
+    morph_panel2,               # NOT PCA compressed (raw UNI AnnData)
+    expr_panel1,
+    expr_panel2,
+    MAX_DIST              = None,
+    k_candidates          = None,
+    threshold             = None,
+    N_PCA_MORPH           = 512,
+    n_gene_comps          = 512,
+    # ── cluster parameters ──────────────────────────────────────────────────
+    leiden_resolution_morph   = 1.0,   # higher = more clusters
+    n_pca_comps_morph_cluster = 50,
+    n_neighbors_transfer      = 15,
+    min_cluster_size          = 10,
+    cross_cluster_penalty     = 0.3,   # tune: 0.1=mild, 0.3=moderate, 0.5=strong
+    verbose = False,
+):
+    """
+    HINGE with cluster-aware matching.
 
+    Key addition vs E_HINGE
+    -----------------------
+    1. UNI features are clustered at high resolution (leiden_resolution=1.0)
+       giving ~20-30 clusters for ~8k cells.
+    2. Labels are transferred to Panel 2 via cosine KNN on raw UNI features.
+    3. During linear_sum_assignment, cross-cluster pairs receive a score
+       penalty of `cross_cluster_penalty`, discouraging rare cells from
+       being matched to cells of different morphological type.
+
+    This does NOT use spatial coordinates for clustering → no circularity.
+    This does NOT require pre-labeled cell types → works on any dataset.
+    """
+    if MAX_DIST is None:
+        nn_dist  = calculate_nn_dist(xy_panel1, xy_panel2_reg)
+        MAX_DIST = round(float(np.percentile(nn_dist, 90)))
+        if verbose:
+            print(f"  MAX_DIST auto: {MAX_DIST} µm")
+
+    # ── Step 1: Compute morphological cluster labels ──────────────────────────
+    if verbose:
+        print("\n  Computing morphological cluster labels...")
+
+    labels_p1, labels_p2, cluster_info = compute_morph_cluster_labels(
+        morph_panel1,
+        morph_panel2,
+        n_pca_comps           = n_pca_comps_morph_cluster,
+        leiden_resolution     = leiden_resolution_morph,
+        n_neighbors_transfer  = n_neighbors_transfer,
+        min_cluster_size      = min_cluster_size,
+        verbose               = verbose,
+    )
+
+    if verbose:
+        print(f"\n  Morphological clusters: {cluster_info['K']}  "
+              f"(cross-cluster penalty = {cross_cluster_penalty})")
+
+    # ── Step 2: Expression features (identical to E_HINGE) ───────────────────
+    overlapping_genes = get_overlapping_genes([expr_panel1], [expr_panel2])
+
+    gene_stats = compute_gene_agreement_population(
+        expr_panel1, expr_panel2, overlapping_genes,
+        min_detection_rate = 0.05,
+        max_log2fc         = 1.0,
+        verbose            = verbose,
+    )
+
+    weighted_expr_p1, weighted_expr_p2, selected_genes, w_expr = \
+        build_weighted_expression_features(
+            expr_panel1, expr_panel2, gene_stats,
+            verbose=verbose,
+        )
+
+    # ── Step 3: Morphology PCA (identical to E_HINGE) ────────────────────────
+    morph_p1_list, morph_p2_list, _ = prepare_morphology_features(
+        [morph_panel1], [morph_panel2], N_PCA_MORPH=N_PCA_MORPH
+    )
+
+    # ── Step 4: Expression PCA ────────────────────────────────────────────────
+    weighted_expr_p1_adata = ad.AnnData(X=weighted_expr_p1)
+    weighted_expr_p1_adata.var_names = selected_genes
+    weighted_expr_p2_adata = ad.AnnData(X=weighted_expr_p2)
+    weighted_expr_p2_adata.var_names = selected_genes
+
+    w_expr_p1_list, w_expr_p2_list, _, _ = prepare_expression_features(
+        [weighted_expr_p1_adata], [weighted_expr_p2_adata],
+        n_comps=n_gene_comps,
+    )
+
+    morph_p1 = morph_p1_list[0]
+    morph_p2 = morph_p2_list[0]
+    expr_p1  = w_expr_p1_list[0]
+    expr_p2  = w_expr_p2_list[0]
+    w_morph  = 1.0 - w_expr
+
+    # ── Step 5: Cluster-aware combined matching ───────────────────────────────
+    def combined_score(i, j):
+        s_morph = float(morph_p1[i] @ morph_p2[j])
+        s_expr  = float(expr_p1[i]  @ expr_p2[j])
+        return w_morph * s_morph + w_expr * s_expr
+
+    matched_p1, matched_p2, matched_sc = _global_assignment_cluster_aware(
+        xy_panel1,
+        xy_panel2_reg,
+        combined_score,
+        max_dist              = MAX_DIST,
+        threshold             = threshold,
+        k_candidates          = k_candidates,
+        cluster_labels_p1     = labels_p1,
+        cluster_labels_p2     = labels_p2,
+        cross_cluster_penalty = cross_cluster_penalty,
+    )
+
+    matched_dist = np.linalg.norm(
+        xy_panel1[matched_p1] - xy_panel2_reg[matched_p2], axis=1
+    )
+    print(
+        f"  [H HINGE4     ] {len(matched_p1):>6} pairs "
+        f"({len(matched_p1)/len(xy_panel1):.1%}), "
+        f"median dist = {np.median(matched_dist):.2f}, "
+        f"median sim = {np.median(matched_sc):.3f}"
+    )
+
+    return matched_p1, matched_p2
 
 
 '''
@@ -649,7 +871,7 @@ def run_all_strategies(
     verbose = False,
     
     #parameters for hinge_2──
-    run_hinge2 = False,
+    run_hinge2 = True,
     leiden_resolution     = 0.5,
     n_pca_comps_cluster   = 30,
     n_neighbors_transfer  = 15,
@@ -663,6 +885,12 @@ def run_all_strategies(
     n_smooth_iters = 1,
     self_weight    = 0.8,
     #max_radius     = None,
+    
+    
+    # Hinge4
+    run_hinge4   = True,
+    leiden_resolution_morph   = 1.0,
+    cross_cluster_penalty = 0.3,
 ):
     print(f"\n  --- {pair_label} ---")
 
@@ -829,7 +1057,7 @@ def run_all_strategies(
             ),
 
         if run_hinge3:
-             result_dict["F_HINGE3"]= run_hinge_3(
+             result_dict["G_HINGE3"]= run_hinge_3(
             xy_panel1, xy_panel2_reg,
             morph_panel1, morph_panel2,
             expr_panel1, expr_panel2,
@@ -843,6 +1071,20 @@ def run_all_strategies(
             self_weight    = self_weight,
             max_radius     = float(np.percentile(nn_dist, 25)),
         ),
+             
+        if run_hinge4:
+            result_dict["H_HINGE4"]=run_hinge_4(
+                xy_panel1, xy_panel2_reg,
+                morph_panel1, morph_panel2,
+                expr_panel1, expr_panel2,
+                MAX_DIST                  = MAX_DIST,
+                k_candidates              = None,
+                threshold                 = None,
+                N_PCA_MORPH               = N_PCA_MORPH,
+                n_gene_comps              = n_gene_comps,
+                leiden_resolution_morph   = leiden_resolution_morph,
+                cross_cluster_penalty     = cross_cluster_penalty,
+            ),
             
             
         

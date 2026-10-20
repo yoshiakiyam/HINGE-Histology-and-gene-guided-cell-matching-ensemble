@@ -491,6 +491,12 @@ def evaluate_synthetic_with_dropout(
     verbose               = False,
     evaluate_celltype     = False,
     celltypes_p1          = None,
+    
+    
+    run_hinge2 = False,
+
+    run_hinge3 = False,
+    run_hinge4 = False,
 ):
     s1_keep_idx  = dropout_result['s1_keep_idx']
     s1t_keep_idx = dropout_result['s1t_keep_idx']
@@ -524,6 +530,11 @@ def evaluate_synthetic_with_dropout(
         n_pca_comps_cluster   = n_pca_comps_cluster,
         n_neighbors_transfer  = n_neighbors_transfer,
         min_cells_per_cluster = min_cells_per_cluster,
+        
+        
+        run_hinge2 = run_hinge2,
+        run_hinge3 = run_hinge3,
+        run_hinge4 = run_hinge4,
     )
 
     results   = {}
@@ -739,8 +750,8 @@ def run_synthetic_evaluation_with_dropout(
 
 
     run_hinge2 = False,
-
     run_hinge3 = False,
+    run_hinge4 = False,
 ):
     """
     Synthetic evaluation with cell dropout.
@@ -805,8 +816,14 @@ def run_synthetic_evaluation_with_dropout(
     
     
     if evaluate_hinge:
-        strategies += ["E_HINGE"] #, "F_HINGE2",  "G_HINGE3"]   # both added together
-        
+        strategies += ["E_HINGE"] 
+        if run_hinge2:
+            strategies += ["F_HINGE2"]
+        if run_hinge3:
+            strategies += ["G_HINGE3"]
+        if run_hinge4:
+            strategies += ["H_HINGE4"]
+
     records          = []    # accuracy records (one row per strategy/replicate)
     celltype_records = []    # cell-type records (one row per strategy/replicate/cell_type)
     for fake in fakes:
@@ -856,6 +873,9 @@ def run_synthetic_evaluation_with_dropout(
                 n_pca_comps_cluster   = n_pca_comps_cluster,
                 n_neighbors_transfer  = n_neighbors_transfer,
                 min_cells_per_cluster = min_cells_per_cluster,
+                run_hinge2 = run_hinge2,
+                run_hinge3 = run_hinge3,
+                run_hinge4 = run_hinge4,
             )
 
         else:
