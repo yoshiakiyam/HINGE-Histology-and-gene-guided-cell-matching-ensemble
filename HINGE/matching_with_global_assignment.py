@@ -1054,7 +1054,7 @@ def run_all_strategies(
                 n_pca_comps_cluster   = n_pca_comps_cluster,
                 n_neighbors_transfer  = n_neighbors_transfer,
                 min_cells_per_cluster = min_cells_per_cluster,
-            ),
+            )
 
         if run_hinge3:
              result_dict["G_HINGE3"]= run_hinge_3(
@@ -1070,7 +1070,7 @@ def run_all_strategies(
             n_smooth_iters = n_smooth_iters,
             self_weight    = self_weight,
             max_radius     = float(np.percentile(nn_dist, 25)),
-        ),
+        )
              
         if run_hinge4:
             result_dict["H_HINGE4"]=run_hinge_4(
@@ -1084,7 +1084,7 @@ def run_all_strategies(
                 n_gene_comps              = n_gene_comps,
                 leiden_resolution_morph   = leiden_resolution_morph,
                 cross_cluster_penalty     = cross_cluster_penalty,
-            ),
+            )
             
             
         
