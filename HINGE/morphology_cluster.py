@@ -4,7 +4,8 @@ from scipy.sparse import issparse
 import scanpy as sc
 import pandas as pd
 
-
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import normalize as sk_normalize
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Morphology-based cell type clustering + label transfer
@@ -29,9 +30,7 @@ def compute_morph_cluster_labels(
         Do NOT pass count data — these features are already in a scaled space.
         normalize_total / log1p are intentionally skipped.
     """
-    from sklearn.neighbors import KNeighborsClassifier
-    from sklearn.preprocessing import normalize as sk_normalize
-
+    
     def _to_array(x):
         if hasattr(x, 'X'):
             arr = x.X.toarray() if issparse(x.X) else np.array(x.X)

@@ -468,6 +468,8 @@ def apply_dropout(
         'n_s1t_keep'   : len(s1t_keep_idx),
         'n_eval'       : len(eval_idx),
     }
+    
+    
 def evaluate_synthetic_with_dropout(
     s_orig,
     fake,

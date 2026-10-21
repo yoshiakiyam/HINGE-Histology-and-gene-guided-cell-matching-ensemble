@@ -738,8 +738,8 @@ def run_hinge_4(
     n_pca_comps_morph_cluster = 50,
     n_neighbors_transfer      = 15,
     min_cluster_size          = 10,
-    cross_cluster_penalty     = 0.3,   # tune: 0.1=mild, 0.3=moderate, 0.5=strong
-    verbose = False,
+    cross_cluster_penalty     = 0.15,   # tune: 0.1=mild, 0.3=moderate, 0.5=strong
+    verbose = True,
 ):
     """
     HINGE with cluster-aware matching.
@@ -839,12 +839,13 @@ def run_hinge_4(
     matched_dist = np.linalg.norm(
         xy_panel1[matched_p1] - xy_panel2_reg[matched_p2], axis=1
     )
-    print(
-        f"  [H HINGE4     ] {len(matched_p1):>6} pairs "
-        f"({len(matched_p1)/len(xy_panel1):.1%}), "
-        f"median dist = {np.median(matched_dist):.2f}, "
-        f"median sim = {np.median(matched_sc):.3f}"
-    )
+    if verbose:
+        print(
+            f"  [H HINGE4     ] {len(matched_p1):>6} pairs "
+            f"({len(matched_p1)/len(xy_panel1):.1%}), "
+            f"median dist = {np.median(matched_dist):.2f}, "
+            f"median sim = {np.median(matched_sc):.3f}"
+        )
 
     return matched_p1, matched_p2
 
@@ -890,7 +891,7 @@ def run_all_strategies(
     # Hinge4
     run_hinge4   = True,
     leiden_resolution_morph   = 1.0,
-    cross_cluster_penalty = 0.3,
+    cross_cluster_penalty = 0.15,
 ):
     print(f"\n  --- {pair_label} ---")
 
