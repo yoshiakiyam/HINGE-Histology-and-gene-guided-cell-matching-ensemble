@@ -849,6 +849,139 @@ def run_hinge_4(
 
     return matched_p1, matched_p2
 
+#########################################################################################################################
+
+from HINGE.morphology_cluster import compute_morph_cluster_labels_joint
+
+def run_hinge_5(
+    xy_panel1,
+    xy_panel2_reg,
+    morph_panel1,               # raw UNI (NOT PCA-compressed)
+    morph_panel2,               # raw UNI (NOT PCA-compressed)
+    expr_panel1,
+    expr_panel2,
+    MAX_DIST                  = None,
+    k_candidates              = None,
+    threshold                 = None,
+    N_PCA_MORPH               = 512,
+    n_gene_comps              = 512,
+    # ── cluster parameters ──────────────────────────────────────────────────
+    leiden_resolution_morph   = 1.0,
+    n_pca_comps_morph_cluster = 50,
+    min_cluster_size          = 10,
+    cross_cluster_penalty     = 0.15,
+    verbose                   = True,
+):
+    """
+    HINGE5 — joint morphology clustering + cluster-aware matching.
+
+    Difference from HINGE4
+    ----------------------
+    HINGE4: cluster P1 → KNN-transfer labels to P2
+    HINGE5: concatenate P1+P2 → joint Leiden → split labels back
+
+    Joint clustering is more principled because:
+    - P2 cells near cluster boundaries are assigned directly, not estimated
+    - No KNN hyperparameter (k_transfer) to tune
+    - Panel-mixing diagnostic reveals if batch effects exist in UNI space
+
+    Everything else (expression features, combined scoring,
+    _global_assignment_cluster_aware) is identical to HINGE4.
+    """
+    if MAX_DIST is None:
+        nn_dist  = calculate_nn_dist(xy_panel1, xy_panel2_reg)
+        MAX_DIST = round(float(np.percentile(nn_dist, 95)))
+        if verbose:
+            print(f"  MAX_DIST auto: {MAX_DIST} µm")
+
+    # ── Step 1: Joint morphological clustering ────────────────────────────────
+    if verbose:
+        print("\n  [I_HINGE5] Computing JOINT morphological cluster labels...")
+
+    labels_p1, labels_p2, cluster_info = compute_morph_cluster_labels_joint(
+        morph_panel1,
+        morph_panel2,
+        n_pca_comps       = n_pca_comps_morph_cluster,
+        leiden_resolution = leiden_resolution_morph,
+        min_cluster_size  = min_cluster_size,
+        verbose           = verbose,
+    )
+
+    if verbose:
+        print(f"\n  Morphological clusters (joint): {cluster_info['K']}  "
+              f"(cross-cluster penalty = {cross_cluster_penalty})")
+
+    # ── Step 2: Expression features (identical to E_HINGE / HINGE4) ──────────
+    overlapping_genes = get_overlapping_genes([expr_panel1], [expr_panel2])
+
+    gene_stats = compute_gene_agreement_population(
+        expr_panel1, expr_panel2, overlapping_genes,
+        min_detection_rate = 0.05,
+        max_log2fc         = 1.0,
+        verbose            = verbose,
+    )
+
+    weighted_expr_p1, weighted_expr_p2, selected_genes, w_expr = \
+        build_weighted_expression_features(
+            expr_panel1, expr_panel2, gene_stats,
+            verbose=verbose,
+        )
+
+    # ── Step 3: Morphology PCA ────────────────────────────────────────────────
+    morph_p1_list, morph_p2_list, _ = prepare_morphology_features(
+        [morph_panel1], [morph_panel2], N_PCA_MORPH=N_PCA_MORPH
+    )
+
+    # ── Step 4: Expression PCA ────────────────────────────────────────────────
+    weighted_expr_p1_adata = ad.AnnData(X=weighted_expr_p1)
+    weighted_expr_p1_adata.var_names = selected_genes
+    weighted_expr_p2_adata = ad.AnnData(X=weighted_expr_p2)
+    weighted_expr_p2_adata.var_names = selected_genes
+
+    w_expr_p1_list, w_expr_p2_list, _, _ = prepare_expression_features(
+        [weighted_expr_p1_adata], [weighted_expr_p2_adata],
+        n_comps=n_gene_comps,
+    )
+
+    morph_p1 = morph_p1_list[0]
+    morph_p2 = morph_p2_list[0]
+    expr_p1  = w_expr_p1_list[0]
+    expr_p2  = w_expr_p2_list[0]
+    w_morph  = 1.0 - w_expr
+
+    # ── Step 5: Cluster-aware combined matching ───────────────────────────────
+    def combined_score(i, j):
+        s_morph = float(morph_p1[i] @ morph_p2[j])
+        s_expr  = float(expr_p1[i]  @ expr_p2[j])
+        return w_morph * s_morph + w_expr * s_expr
+
+    matched_p1, matched_p2, matched_sc = _global_assignment_cluster_aware(
+        xy_panel1,
+        xy_panel2_reg,
+        combined_score,
+        max_dist              = MAX_DIST,
+        threshold             = threshold,
+        k_candidates          = k_candidates,
+        cluster_labels_p1     = labels_p1,
+        cluster_labels_p2     = labels_p2,
+        cross_cluster_penalty = cross_cluster_penalty,
+    )
+
+    matched_dist = np.linalg.norm(
+        xy_panel1[matched_p1] - xy_panel2_reg[matched_p2], axis=1
+    )
+    if verbose:
+        print(
+            f"  [I HINGE5     ] {len(matched_p1):>6} pairs "
+            f"({len(matched_p1)/len(xy_panel1):.1%}), "
+            f"median dist = {np.median(matched_dist):.2f}, "
+            f"median sim = {np.median(matched_sc):.3f}"
+        )
+
+    return matched_p1, matched_p2
+
+
+
 
 '''
 Run all matching strategies (distance, histology, expression, combined) and print results.
@@ -892,6 +1025,12 @@ def run_all_strategies(
     run_hinge4   = True,
     leiden_resolution_morph   = 1.0,
     cross_cluster_penalty = 0.15,
+    
+    
+    # ── NEW: Hinge5 ──────────────────────────────────────────────────────────
+    run_hinge5              = False,
+    leiden_resolution_morph5 = 1.0,   # separate tunable if needed
+    cross_cluster_penalty5   = 0.15,
 ):
     print(f"\n  --- {pair_label} ---")
 
@@ -1087,7 +1226,19 @@ def run_all_strategies(
                 cross_cluster_penalty     = cross_cluster_penalty,
             )
             
-            
+        if run_hinge5:
+            result_dict["I_HINGE5"] = run_hinge_5(
+                xy_panel1, xy_panel2_reg,
+                morph_panel1, morph_panel2,
+                expr_panel1, expr_panel2,
+                MAX_DIST                  = MAX_DIST,
+                k_candidates              = None,
+                threshold                 = None,
+                N_PCA_MORPH               = N_PCA_MORPH,
+                n_gene_comps              = n_gene_comps,
+                leiden_resolution_morph   = leiden_resolution_morph5,
+                cross_cluster_penalty     = cross_cluster_penalty5,
+            )      
         
         
     return result_dict
