@@ -129,19 +129,21 @@ def compute_morph_cluster_labels(
     labels_p2 = knn.predict(p2_norm)
 
     if verbose:
-        dist_p1   = pd.Series(labels_p1).value_counts(
-            normalize=True).sort_index()
-        dist_p2   = pd.Series(labels_p2).value_counts(
-            normalize=True).sort_index()
+        # Integer labels 0..K-1 (matches labels_p1 / labels_p2 dtype)
+        dist_p1 = (pd.Series(labels_p1).value_counts(normalize=True)
+                     .reindex(range(K), fill_value=0.0))
+        dist_p2 = (pd.Series(labels_p2).value_counts(normalize=True)
+                     .reindex(range(K), fill_value=0.0))
+
         max_delta = 0.0
         print(f"\n  Label transfer  (KNN k={n_neighbors_transfer}, cosine)")
         print(f"  {'Cluster':>8} {'P1 frac':>10} {'P2 frac':>10} {'Δ':>8}")
-        for c in sorted(unique_merged):
-            f1    = dist_p1.get(c, 0.0)
-            f2    = dist_p2.get(c, 0.0)
+        for c in range(K):
+            f1    = dist_p1[c]
+            f2    = dist_p2[c]
             delta = abs(f1 - f2)
             max_delta = max(max_delta, delta)
-            flag  = " :warning:" if delta > 0.05 else ""
+            flag  = "  <-- check" if delta > 0.05 else ""
             print(f"  {c:>8} {f1:>10.3f} {f2:>10.3f} {delta:>8.3f}{flag}")
         print(f"\n  Max fraction imbalance : {max_delta:.3f}")
 
