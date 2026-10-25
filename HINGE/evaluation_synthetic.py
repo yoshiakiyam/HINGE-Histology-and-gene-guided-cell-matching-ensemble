@@ -499,6 +499,7 @@ def evaluate_synthetic_with_dropout(
     run_hinge3 = False,
     run_hinge4 = False,
     run_hinge5 = False,    # ← NEW
+    run_hinge6 = False,    # ← NEW
 ):
     s1_keep_idx  = dropout_result['s1_keep_idx']
     s1t_keep_idx = dropout_result['s1t_keep_idx']
@@ -537,7 +538,8 @@ def evaluate_synthetic_with_dropout(
         run_hinge2 = run_hinge2,
         run_hinge3 = run_hinge3,
         run_hinge4 = run_hinge4,
-        run_hinge5 = run_hinge5,    # ← NEW
+        run_hinge5 = run_hinge5,  
+        run_hinge6 = run_hinge6,
     )
 
     results   = {}
@@ -751,11 +753,12 @@ def run_synthetic_evaluation_with_dropout(
     evaluate_celltype = False,
     celltype_key      = "cell_type",   # adata_panel1.obs column name
 
-
+    run_hinge1 = True,
     run_hinge2 = False,
     run_hinge3 = False,
     run_hinge4 = False,
     run_hinge5 = False,    # ← NEW
+    run_hinge6 = False,
 ):
     """
     Synthetic evaluation with cell dropout.
@@ -820,7 +823,8 @@ def run_synthetic_evaluation_with_dropout(
     
     
     if evaluate_hinge:
-        strategies += ["E_HINGE"] 
+        if run_hinge1:
+            strategies += ["E_HINGE"] 
         if run_hinge2:
             strategies += ["F_HINGE2"]
         if run_hinge3:
@@ -829,6 +833,8 @@ def run_synthetic_evaluation_with_dropout(
             strategies += ["H_HINGE4"]
             
         if run_hinge5: strategies += ["I_HINGE5"] 
+        
+        if run_hinge6: strategies += ["J_HINGE6"]
 
     records          = []    # accuracy records (one row per strategy/replicate)
     celltype_records = []    # cell-type records (one row per strategy/replicate/cell_type)
@@ -883,6 +889,7 @@ def run_synthetic_evaluation_with_dropout(
                 run_hinge3 = run_hinge3,
                 run_hinge4 = run_hinge4,
                 run_hinge5 = run_hinge5,
+                run_hinge6 = run_hinge6,  
             )
 
         else:

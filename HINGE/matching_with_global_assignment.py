@@ -981,7 +981,141 @@ def run_hinge_5(
     return matched_p1, matched_p2
 
 
+from HINGE.morphology_cluster import compute_morph_cluster_labels_joint_harmonized
 
+def run_hinge_6(
+    xy_panel1,
+    xy_panel2_reg,
+    morph_panel1,
+    morph_panel2,
+    expr_panel1,
+    expr_panel2,
+    MAX_DIST                  = None,
+    k_candidates              = None,
+    threshold                 = None,
+    N_PCA_MORPH               = 512,
+    n_gene_comps              = 512,
+    # ── cluster parameters ──────────────────────────────────────────────────
+    leiden_resolution_morph   = 1.0,
+    n_pca_comps_morph_cluster = 50,
+    min_cluster_size          = 10,
+    cross_cluster_penalty     = 0.15,
+    # ── harmonization parameters ─────────────────────────────────────────────
+    harmony_method            = "harmony",  # "harmony" | "mean_center" | "none"
+    n_harmony_iters           = 10,
+    harmony_theta             = 2.0,
+    verbose                   = True,
+):
+    """
+    HINGE6 — harmonized joint morphology clustering + cluster-aware matching.
+
+    Difference from HINGE5
+    ----------------------
+    HINGE5: joint Leiden on raw joint PCA
+    HINGE6: joint Leiden on HARMONY-corrected joint PCA
+
+    This directly addresses the panel separation failure mode seen in HINGE5
+    at alpha >= 0.75 (mixing std 0.21–0.40), where synthetic noise caused
+    P1 and P2 to cluster separately. Harmony removes the inter-panel centroid
+    shift while preserving within-panel biological structure.
+
+    In real data, the correction is minimal (|delta_mean| = 0.00264) but
+    harmless — HINGE6 degrades gracefully to HINGE5 when panels are already
+    well-mixed.
+    """
+    if MAX_DIST is None:
+        nn_dist  = calculate_nn_dist(xy_panel1, xy_panel2_reg)
+        MAX_DIST = round(float(np.percentile(nn_dist, 95)))
+        if verbose:
+            print(f"  MAX_DIST auto: {MAX_DIST} µm")
+
+    # ── Step 1: Harmonized joint morphological clustering ─────────────────────
+    if verbose:
+        print(f"\n  [J_HINGE6] Computing HARMONIZED joint morphological clusters "
+              f"(method={harmony_method})...")
+
+    labels_p1, labels_p2, cluster_info = compute_morph_cluster_labels_joint_harmonized(
+        morph_panel1,
+        morph_panel2,
+        n_pca_comps       = n_pca_comps_morph_cluster,
+        leiden_resolution = leiden_resolution_morph,
+        min_cluster_size  = min_cluster_size,
+        harmony_method    = harmony_method,
+        n_harmony_iters   = n_harmony_iters,
+        harmony_theta     = harmony_theta,
+        verbose           = verbose,
+    )
+
+    if verbose:
+        print(f"\n  Morphological clusters (harmonized joint): {cluster_info['K']}  "
+              f"(cross-cluster penalty = {cross_cluster_penalty})")
+
+    # ── Steps 2–4: Expression + Morphology features (identical to HINGE5) ────
+    overlapping_genes = get_overlapping_genes([expr_panel1], [expr_panel2])
+
+    gene_stats = compute_gene_agreement_population(
+        expr_panel1, expr_panel2, overlapping_genes,
+        min_detection_rate = 0.05,
+        max_log2fc         = 1.0,
+        verbose            = verbose,
+    )
+
+    weighted_expr_p1, weighted_expr_p2, selected_genes, w_expr = \
+        build_weighted_expression_features(
+            expr_panel1, expr_panel2, gene_stats,
+            verbose=verbose,
+        )
+
+    morph_p1_list, morph_p2_list, _ = prepare_morphology_features(
+        [morph_panel1], [morph_panel2], N_PCA_MORPH=N_PCA_MORPH
+    )
+
+    weighted_expr_p1_adata = ad.AnnData(X=weighted_expr_p1)
+    weighted_expr_p1_adata.var_names = selected_genes
+    weighted_expr_p2_adata = ad.AnnData(X=weighted_expr_p2)
+    weighted_expr_p2_adata.var_names = selected_genes
+
+    w_expr_p1_list, w_expr_p2_list, _, _ = prepare_expression_features(
+        [weighted_expr_p1_adata], [weighted_expr_p2_adata],
+        n_comps=n_gene_comps,
+    )
+
+    morph_p1 = morph_p1_list[0]
+    morph_p2 = morph_p2_list[0]
+    expr_p1  = w_expr_p1_list[0]
+    expr_p2  = w_expr_p2_list[0]
+    w_morph  = 1.0 - w_expr
+
+    # ── Step 5: Cluster-aware combined matching (identical to HINGE5) ─────────
+    def combined_score(i, j):
+        s_morph = float(morph_p1[i] @ morph_p2[j])
+        s_expr  = float(expr_p1[i]  @ expr_p2[j])
+        return w_morph * s_morph + w_expr * s_expr
+
+    matched_p1, matched_p2, matched_sc = _global_assignment_cluster_aware(
+        xy_panel1,
+        xy_panel2_reg,
+        combined_score,
+        max_dist              = MAX_DIST,
+        threshold             = threshold,
+        k_candidates          = k_candidates,
+        cluster_labels_p1     = labels_p1,
+        cluster_labels_p2     = labels_p2,
+        cross_cluster_penalty = cross_cluster_penalty,
+    )
+
+    matched_dist = np.linalg.norm(
+        xy_panel1[matched_p1] - xy_panel2_reg[matched_p2], axis=1
+    )
+    if verbose:
+        print(
+            f"  [J HINGE6     ] {len(matched_p1):>6} pairs "
+            f"({len(matched_p1)/len(xy_panel1):.1%}), "
+            f"median dist = {np.median(matched_dist):.2f}, "
+            f"median sim = {np.median(matched_sc):.3f}"
+        )
+
+    return matched_p1, matched_p2
 
 '''
 Run all matching strategies (distance, histology, expression, combined) and print results.
@@ -1003,6 +1137,9 @@ def run_all_strategies(
     n_gene_comps = 128,
     
     verbose = False,
+    
+    #for hinge_1
+    run_hinge1 = True,
     
     #parameters for hinge_2──
     run_hinge2 = True,
@@ -1027,10 +1164,18 @@ def run_all_strategies(
     cross_cluster_penalty = 0.15,
     
     
-    # ── NEW: Hinge5 ──────────────────────────────────────────────────────────
+    # ── Hinge5 ──────────────────────────────────────────────────────────
     run_hinge5              = False,
     leiden_resolution_morph5 = 1.0,   # separate tunable if needed
     cross_cluster_penalty5   = 0.15,
+    
+    # ── HINGE6 ──────────────────────────────────────────────────────────
+    run_hinge6                = False,
+    leiden_resolution_morph6  = 1.0,
+    cross_cluster_penalty6    = 0.15,
+    harmony_method            = "harmony",   # "harmony" | "mean_center" | "none"
+    n_harmony_iters           = 10,
+    harmony_theta             = 2.0,
 ):
     print(f"\n  --- {pair_label} ---")
 
@@ -1163,7 +1308,12 @@ def run_all_strategies(
                 k_candidates=k_candidates,
                 threshold=threshold,
             ),
-            "E_HINGE": run_hinge(
+
+        }
+        
+        
+        if run_hinge1:
+            result_dict["E_HINGE"] = run_hinge(
                 xy_panel1,
                 xy_panel2_reg,
                 morph_panel1,#NOT PCA COMPRESSED
@@ -1176,8 +1326,7 @@ def run_all_strategies(
                 N_PCA_MORPH = N_PCA_MORPH,
                 n_gene_comps = n_gene_comps
             ),
-
-        }
+            
         if run_hinge2:
             
                         # ── F_HINGE2: cluster structure-based gene agreement (new) ────────

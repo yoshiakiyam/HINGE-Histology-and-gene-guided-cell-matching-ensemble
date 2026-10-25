@@ -121,9 +121,9 @@ def compute_population_diff_stats(
         keep_mask = np.ones(len(xy_p1), dtype=bool)
 
     # robust summary
-    delta_mean_x = float(np.median(nn_disp[keep_mask, 0]))
-    delta_mean_y = float(np.median(nn_disp[keep_mask, 1]))
-    coord_noise_std = float(np.median(nn_dist[keep_mask]))
+    delta_mean_x = float(np.mean(nn_disp[keep_mask, 0]))
+    delta_mean_y = float(np.mean(nn_disp[keep_mask, 1]))
+    coord_noise_std = float(np.mean(nn_dist[keep_mask]))
 
     # ── UNI features ───────────────────────────────────────────────
     mean_uni_p1 = uni_p1.mean(axis=0)
@@ -167,18 +167,18 @@ def compute_population_diff_stats(
     }
 
     print(f"\n  Coordinate displacement field:")
-    print(f"    median dx        = {delta_mean_x:+.2f} um")
-    print(f"    median dy        = {delta_mean_y:+.2f} um")
-    print(f"    median NN dist   = {coord_noise_std:.2f} um")
+    print(f"    mean dx          = {delta_mean_x:+.2f} um")
+    print(f"    mean dy          = {delta_mean_y:+.2f} um")
+    print(f"    mean NN dist     = {coord_noise_std:.2f} um")
     print(f"    kept fraction    = {keep_mask.mean():.1%}")
 
     print(f"\n  UNI (normalized space, {uni_p1.shape[1]}D):")
-    print(f"    |delta_mean| median = {np.median(np.abs(delta_mean_uni)):.5f}")
-    print(f"    delta_std    median = {np.median(delta_std_uni):.5f}")
+    print(f"    |delta_mean| mean = {np.mean(np.abs(delta_mean_uni)):.5f}")
+    print(f"    delta_std    mean = {np.mean(delta_std_uni):.5f}")
 
     print(f"\n  Expression ({len(overlap_genes)} genes):")
-    print(f"    |delta_mean| median = {np.median(np.abs(delta_mean_expr)):.4f}")
-    print(f"    delta_std    median = {np.median(delta_std_expr):.4f}")
+    print(f"    |delta_mean| mean = {np.mean(np.abs(delta_mean_expr)):.4f}")
+    print(f"    delta_std    mean = {np.mean(delta_std_expr):.4f}")
 
     return stats
 
