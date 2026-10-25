@@ -20,5 +20,5 @@ Spatial transcriptomics platforms measure gene expression in tissue sections, bu
 
 ---
 <img width="1492" height="840" alt="Screenshot 2026-10-25 191031" src="https://github.com/user-attachments/assets/233b6679-3ede-4f7e-9023-f3e352f3fd93" />
-
+## Hinge improves distance and gene expression based matching
 <img width="2370" height="1466" alt="Fig4_hinge_main_result_bar_sd" src="https://github.com/user-attachments/assets/75a86dc9-07df-4975-8e2a-e9e0f1207c25" />
