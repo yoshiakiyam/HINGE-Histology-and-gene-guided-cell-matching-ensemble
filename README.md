@@ -12,11 +12,11 @@ Spatial transcriptomics platforms measure gene expression in tissue sections, bu
 
 **HINGE** solves this by combining three complementary signals:
 
-| Signal | Source | Dimensionality |
-|---|---|---|
-| Histomorphology | UNI pathology foundation model |
-| Gene expression | Overlapping genes, quality-filtered |
-| Spatial proximity | Candidate filtering by NN distance |
+| Signal | Source | Dimensionality 
+|---|---|
+| Histomorphology | UNI pathology foundation model 
+| Gene expression | Overlapping genes, quality-filtered 
+| Spatial proximity | Candidate filtering by NN distance 
 
 ---
 <img width="1492" height="840" alt="Screenshot 2026-10-25 191031" src="https://github.com/user-attachments/assets/233b6679-3ede-4f7e-9023-f3e352f3fd93" />
