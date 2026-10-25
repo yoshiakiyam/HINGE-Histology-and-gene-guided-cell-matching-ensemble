@@ -870,7 +870,7 @@ def run_hinge_5(
     n_pca_comps_morph_cluster = 50,
     min_cluster_size          = 10,
     cross_cluster_penalty     = 0.15,
-    verbose                   = True,
+    verbose                   = False,
 ):
     """
     HINGE5 — joint morphology clustering + cluster-aware matching.
@@ -1173,7 +1173,7 @@ def run_all_strategies(
     run_hinge6                = False,
     leiden_resolution_morph6  = 1.0,
     cross_cluster_penalty6    = 0.15,
-    harmony_method            = "harmony",   # "harmony" | "mean_center" | "none"
+    harmony_method            = "mean_center",   # "harmony" | "mean_center" | "none"
     n_harmony_iters           = 10,
     harmony_theta             = 2.0,
 ):
@@ -1307,7 +1307,7 @@ def run_all_strategies(
                 w2=0.5,
                 k_candidates=k_candidates,
                 threshold=threshold,
-            ),
+            )
 
         }
         
@@ -1325,7 +1325,7 @@ def run_all_strategies(
                 threshold=None,
                 N_PCA_MORPH = N_PCA_MORPH,
                 n_gene_comps = n_gene_comps
-            ),
+            )
             
         if run_hinge2:
             
@@ -1387,8 +1387,24 @@ def run_all_strategies(
                 n_gene_comps              = n_gene_comps,
                 leiden_resolution_morph   = leiden_resolution_morph5,
                 cross_cluster_penalty     = cross_cluster_penalty5,
-            )      
-        
+            )    
+
+        if run_hinge6:
+            result_dict["J_HINGE6"] = run_hinge_6(
+                xy_panel1, xy_panel2_reg,
+                morph_panel1, morph_panel2,
+                expr_panel1, expr_panel2,
+                MAX_DIST                  = MAX_DIST,
+                k_candidates              = None,
+                threshold                 = None,
+                N_PCA_MORPH               = N_PCA_MORPH,
+                n_gene_comps              = n_gene_comps,
+                leiden_resolution_morph   = leiden_resolution_morph6,
+                cross_cluster_penalty     = cross_cluster_penalty6,
+                harmony_method            = harmony_method,
+                n_harmony_iters           = n_harmony_iters,
+                harmony_theta             = harmony_theta,
+            )
         
     return result_dict
     
