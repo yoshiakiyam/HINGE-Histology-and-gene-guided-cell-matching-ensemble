@@ -1197,10 +1197,10 @@ def run_all_strategies(
             print(f"  Core NN dist p90     : {p90:.2f} um")
             print(f"  Core NN dist p95     : {p95:.2f} um")
             print(f"  Core NN dist p99     : {p99:.2f} um")
-            print(f"Using MAX DIST: {round(p90)}")
+            print(f"Using MAX DIST: {round(p99)}")
 
     
-        MAX_DIST = round(p95)
+        MAX_DIST = round(p99)
 
         
         
