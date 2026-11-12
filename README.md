@@ -7,7 +7,7 @@
 
 ## Overview
 
-Spatial transcriptomics platforms measure gene expression in tissue sections, but a single panel is often insufficient to capture all genes of interest. A common strategy is to measure **adjacent tissue sections** with different gene panels and then integrate them by matching individual cells. However, even small misalignments between sections (~22 µm median) cause distance-only methods to fail — multiple morphologically similar cells lie within the same spatial radius.
+Spatial transcriptomics platforms measure gene expression in tissue sections, but a single panel is often insufficient to capture all genes of interest. A common strategy is to measure **adjacent tissue sections** with different gene panels and then integrate them by matching individual cells. However, even small misalignments between sections (~22 µm median) cause distance-only methods to fail, as multiple morphologically similar cells lie within the same spatial radius.
 <img width="2070" height="1466" alt="Fig1B_Distance_only_Matching_Fails_Even_Without_Cell_Dropout" src="https://github.com/user-attachments/assets/0c39d9c4-3929-4f42-9543-4ba4d06ffac4" />
 
 **HINGE** solves this by combining three complementary signals:
